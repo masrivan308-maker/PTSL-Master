@@ -1,0 +1,6 @@
+{
+  "name": "PTSL Data Entry System",
+  "description": "A comprehensive data management application for PTSL (Pendaftaran Tanah Sistematis Lengkap) with Excel export/import and offline local database.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
