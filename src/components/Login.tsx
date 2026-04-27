@@ -44,7 +44,11 @@ export const Login: React.FC<Props> = ({ onLogin }) => {
 
     } catch (error: any) {
       console.error(error);
-      alert('❌ LOGIN GAGAL\n' + error.message);
+      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+        console.log('Login dibatalkan oleh pengguna.');
+      } else {
+        alert('❌ LOGIN GAGAL\n' + error.message);
+      }
     } finally {
       setIsLoading(false);
     }
