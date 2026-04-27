@@ -26,12 +26,25 @@ export const Login: React.FC<Props> = ({ onLogin }) => {
       let role = 'operator';
       if (userDoc.exists()) {
         role = userDoc.data().role || 'operator';
+        
+        // Developer override for initial admin
+        if (user.email === 'masrivan308@gmail.com' && role !== 'admin') {
+          role = 'admin';
+          await setDoc(userDocRef, { role: 'admin' }, { merge: true });
+        }
       } else {
-        // Create user with default role 'operator'
+        // If this is the very first user in the database, make them an admin
+        const { collection, query, limit, getDocs } = await import('firebase/firestore');
+        const usersSnapshot = await getDocs(query(collection(db, 'users'), limit(1)));
+        if (usersSnapshot.empty) {
+          role = 'admin';
+        }
+
+        // Create user
         await setDoc(userDocRef, {
           email: user.email,
           displayName: user.displayName,
-          role: 'operator',
+          role: role,
           createdAt: new Date().toISOString()
         });
       }
