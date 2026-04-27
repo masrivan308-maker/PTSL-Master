@@ -169,11 +169,11 @@ export const dbService = {
   saveRefWarga: async (data: any[]) => {
     try {
       // Optimize storage: only keep columns we actually use in the form lookup
-      const keysToKeep = ['NIK', 'NAMA', 'TEMPAT LAHIR', 'TANGGAL LAHIR', 'ALAMAT', 'RT/RW', 'KEL/DESA', 'KECAMATAN', 'PEKERJAAN', 'NO HP', 'noKtp', 'nama', 'tempatLahir', 'tanggalLahir', 'alamat', 'rtRw', 'kelDesa', 'kecamatan', 'pekerjaan', 'noHp'];
+      const keysToKeep = ['id', 'NIK', 'NAMA', 'TEMPAT LAHIR', 'TANGGAL LAHIR', 'ALAMAT', 'RT/RW', 'KEL/DESA', 'KECAMATAN', 'PEKERJAAN', 'NO HP', 'noKtp', 'nama', 'tempatLahir', 'tanggalLahir', 'alamat', 'rtRw', 'kelDesa', 'kecamatan', 'pekerjaan', 'noHp'];
       const optimizedData = data.map(row => {
-        const newRow: any = {};
+        const newRow: any = { id: row.id || crypto.randomUUID() };
         keysToKeep.forEach(key => {
-          if (row[key] !== undefined) newRow[key] = row[key];
+          if (row[key] !== undefined && key !== 'id') newRow[key] = row[key];
         });
         return newRow;
       });
@@ -187,10 +187,14 @@ export const dbService = {
   getRefWarga: async (): Promise<any[]> => {
     try {
       const localData: any[] | null = await localforage.getItem(REF_WARGA_KEY);
-      const parsedLocal = localData || [];
+      if (localData !== null && localData.length > 0) {
+        // Ensure legacy entries have IDs
+        return localData.map(d => ({...d, id: d.id || crypto.randomUUID()}));
+      }
       
       // Map Master Data to the expected lookup format
       const mappedMaster = MASTER_WARGA_DATA.map(v => ({
+        id: crypto.randomUUID(),
         NIK: v.NIK,
         NAMA: v.NAMA,
         'TEMPAT LAHIR': v.TEMPAT_LAHIR,
@@ -203,7 +207,8 @@ export const dbService = {
         'NO HP': v.NO_HP
       }));
 
-      return [...mappedMaster, ...parsedLocal];
+      await localforage.setItem(REF_WARGA_KEY, mappedMaster);
+      return mappedMaster;
     } catch (e) {
       return [];
     }
@@ -212,11 +217,11 @@ export const dbService = {
   saveRefSppt: async (data: any[]) => {
     try {
       // Optimize storage for SPPT
-      const keysToKeep = ['NOP', 'NAMA WAJIB PAJAK', 'LUAS SPPT', 'NJOP PERMETER', 'DUSUN', 'BLOK', 'RT', 'RW', 'DESA', 'KECAMATAN', 'nopSppt', 'namaWajibPajak', 'luasSppt', 'njopPermeter', 'dusunJalanGang', 'desa', 'kecamatanLokasi'];
+      const keysToKeep = ['id', 'NOP', 'NAMA WAJIB PAJAK', 'LUAS SPPT', 'NJOP PERMETER', 'DUSUN', 'BLOK', 'RT', 'RW', 'DESA', 'KECAMATAN', 'nopSppt', 'namaWajibPajak', 'luasSppt', 'njopPermeter', 'dusunJalanGang', 'desa', 'kecamatanLokasi'];
       const optimizedData = data.map(row => {
-        const newRow: any = {};
+        const newRow: any = { id: row.id || crypto.randomUUID() };
         keysToKeep.forEach(key => {
-          if (row[key] !== undefined) newRow[key] = row[key];
+          if (row[key] !== undefined && key !== 'id') newRow[key] = row[key];
         });
         return newRow;
       });
@@ -230,7 +235,8 @@ export const dbService = {
   getRefSppt: async (): Promise<any[]> => {
     try {
       const data: any[] | null = await localforage.getItem(REF_SPPT_KEY);
-      return data || [];
+      if (data !== null) return data.map(d => ({...d, id: d.id || crypto.randomUUID()}));
+      return [];
     } catch (e) {
       return [];
     }

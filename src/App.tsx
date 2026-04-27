@@ -5,9 +5,10 @@ import { PTSLList } from './components/PTSLList';
 import { PTSLForm } from './components/PTSLForm';
 import { Login } from './components/Login';
 import { UserManagement } from './components/UserManagement';
+import { MasterDataManagement } from './components/MasterDataManagement';
 import { Upload, HelpCircle, X, LayoutDashboard, FileSpreadsheet, PlusCircle, Database, LogOut, User, RefreshCw, Link, Users } from 'lucide-react';
 
-type View = 'list' | 'form' | 'users';
+type View = 'list' | 'form' | 'users' | 'master';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<string | null>(localStorage.getItem('pts_user'));
@@ -177,13 +178,22 @@ export default function App() {
           </button>
 
           {currentUserRole === 'admin' && (
-            <button 
-              onClick={() => setView('users')}
-              className={`w-full p-3 rounded-xl flex items-center gap-3 font-semibold transition-colors ${view === 'users' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'}`}
-            >
-              <Users size={20} />
-              Manajemen Pengguna
-            </button>
+            <>
+              <button 
+                onClick={() => setView('users')}
+                className={`w-full p-3 rounded-xl flex items-center gap-3 font-semibold transition-colors ${view === 'users' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                <Users size={20} />
+                Manajemen Pengguna
+              </button>
+              <button 
+                onClick={() => setView('master')}
+                className={`w-full p-3 rounded-xl flex items-center gap-3 font-semibold transition-colors ${view === 'master' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                <Database size={20} />
+                Data Master (Referensi)
+              </button>
+            </>
           )}
         </nav>
 
@@ -221,7 +231,7 @@ export default function App() {
         <header className="flex justify-between items-center px-8 py-6 bg-white/80 backdrop-blur-md border-b border-slate-200 shrink-0">
           <div>
             <h2 className="text-xl font-bold tracking-tight">
-              {view === 'list' ? 'Database PTSL Desa Wongsorejo' : view === 'users' ? 'Manajemen Pengguna' : editingRow ? 'Update Data' : 'Form Input Baru'}
+              {view === 'list' ? 'Database PTSL Desa Wongsorejo' : view === 'users' ? 'Manajemen Pengguna' : view === 'master' ? 'Manajemen Data Referensi' : editingRow ? 'Update Data' : 'Form Input Baru'}
             </h2>
             <p className="text-[11px] text-slate-500 font-medium">Manajemen Data Pendaftaran Tanah Sistematis Lengkap.</p>
           </div>
@@ -254,6 +264,8 @@ export default function App() {
             </div>
           ) : view === 'users' && currentUserRole === 'admin' ? (
             <UserManagement />
+          ) : view === 'master' && currentUserRole === 'admin' ? (
+            <MasterDataManagement />
           ) : view === 'form' ? (
             <div className="max-w-6xl mx-auto p-8">
               <PTSLForm 
