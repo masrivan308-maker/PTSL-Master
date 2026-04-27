@@ -78,5 +78,5 @@ export const DEFAULT_VALUES: Partial<PTSLData> = {
   rtRw: '/',
   rt: '',
   rw: '',
-  tanggalLahir: new Date().toISOString().split('T')[0],
+  tanggalLahir: '',
 };

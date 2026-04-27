@@ -4,30 +4,70 @@ import { dbService } from './dbService';
 import { PTSLList } from './components/PTSLList';
 import { PTSLForm } from './components/PTSLForm';
 import { Login } from './components/Login';
-import { Upload, HelpCircle, X, LayoutDashboard, FileSpreadsheet, PlusCircle, Database, LogOut, User } from 'lucide-react';
+import { UserManagement } from './components/UserManagement';
+import { Upload, HelpCircle, X, LayoutDashboard, FileSpreadsheet, PlusCircle, Database, LogOut, User, RefreshCw, Link, Users } from 'lucide-react';
 
-type View = 'list' | 'form';
+type View = 'list' | 'form' | 'users';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<string | null>(localStorage.getItem('pts_user'));
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(localStorage.getItem('pts_user_role'));
   const [view, setView] = useState<View>('list');
   const [rows, setRows] = useState<PTSLData[]>([]);
   const [editingRow, setEditingRow] = useState<PTSLData | undefined>();
   const [showImport, setShowImport] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [gsheetIdUtama, setGsheetIdUtama] = useState(localStorage.getItem('gsheet_id_utama') || '');
+  const [gsheetIdWarga, setGsheetIdWarga] = useState(localStorage.getItem('gsheet_id_warga') || '');
+  const [gsheetIdSppt, setGsheetIdSppt] = useState(localStorage.getItem('gsheet_id_sppt') || '');
 
   useEffect(() => {
     setRows(dbService.getRows());
   }, []);
 
-  const handleLogin = (name: string) => {
-    setCurrentUser(name);
-    localStorage.setItem('pts_user', name);
+  const handleSyncGSheet = async (type: 'UTAMA' | 'WARGA' | 'SPPT') => {
+    const id = type === 'UTAMA' ? gsheetIdUtama : type === 'WARGA' ? gsheetIdWarga : gsheetIdSppt;
+    if (!id) return alert('Silakan masukkan ID atau Link Google Sheet terlebih dahulu');
+    
+    setIsSyncing(true);
+    try {
+      const data = await dbService.syncWithGoogleSheet(id);
+      if (type === 'UTAMA') {
+        const parsed = dbService.parsePTSLDataFromExcel(data);
+        dbService.clearAllRows();
+        parsed.forEach(row => dbService.saveRow(row));
+        setRows(dbService.getRows());
+        localStorage.setItem('gsheet_id_utama', id);
+        alert(`✅ SINKRONISASI BERHASIL\nBerhasil mengambil ${parsed.length} data Utama dari Google Sheets.`);
+      } else if (type === 'WARGA') {
+        await dbService.saveRefWarga(data);
+        localStorage.setItem('gsheet_id_warga', id);
+        alert(`✅ SINKRONISASI BERHASIL\nBerhasil mengambil ${data.length} data referensi Warga dari Google Sheets.`);
+      } else {
+        await dbService.saveRefSppt(data);
+        localStorage.setItem('gsheet_id_sppt', id);
+        alert(`✅ SINKRONISASI BERHASIL\nBerhasil mengambil ${data.length} data referensi SPPT dari Google Sheets.`);
+      }
+    } catch (err: any) {
+      alert('❌ GAGAL SINKRONISASI\n' + err.message);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleLogin = (user: any) => {
+    setCurrentUser(user.username);
+    setCurrentUserRole(user.role);
+    localStorage.setItem('pts_user', user.username);
+    localStorage.setItem('pts_user_role', user.role);
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
+    setCurrentUserRole(null);
     localStorage.removeItem('pts_user');
+    localStorage.removeItem('pts_user_role');
   };
 
   const handleSave = (data: PTSLData) => {
@@ -76,15 +116,11 @@ export default function App() {
     if (file) {
       try {
         const imported = await dbService.importFromExcel(file);
-        dbService.saveRefWarga(imported);
+        await dbService.saveRefWarga(imported);
         setShowImport(false);
         alert(`✅ BERHASIL\nMengimpor ${imported.length} data referensi Warga!`);
       } catch (err: any) {
-        if (err.message === 'STORAGE_FULL') {
-          alert('❌ MEMORI PENUH\nFile Excel terlalu besar untuk disimpan di browser. Silakan kurangi jumlah baris data atau hapus data lama terlebih dahulu.');
-        } else {
-          alert('❌ ERROR\nTerjadi kesalahan saat mengimpor file. Pastikan format kolom sesuai.');
-        }
+        alert('❌ ERROR\n' + (err.message || 'Terjadi kesalahan saat mengimpor file. Pastikan format kolom sesuai.'));
       }
     }
   };
@@ -94,15 +130,11 @@ export default function App() {
     if (file) {
       try {
         const imported = await dbService.importFromExcel(file);
-        dbService.saveRefSppt(imported);
+        await dbService.saveRefSppt(imported);
         setShowImport(false);
         alert(`✅ BERHASIL\nMengimpor ${imported.length} data referensi SPPT!`);
       } catch (err: any) {
-        if (err.message === 'STORAGE_FULL') {
-          alert('❌ MEMORI PENUH\nFile Excel terlalu besar untuk disimpan di browser. Silakan kurangi jumlah baris data atau hapus data lama terlebih dahulu.');
-        } else {
-          alert('❌ ERROR\nTerjadi kesalahan saat mengimpor file. Pastikan format kolom sesuai.');
-        }
+        alert('❌ ERROR\n' + (err.message || 'Terjadi kesalahan saat mengimpor file. Pastikan format kolom sesuai.'));
       }
     }
   };
@@ -143,6 +175,16 @@ export default function App() {
             <FileSpreadsheet size={20} />
             Export Laporan
           </button>
+
+          {currentUserRole === 'admin' && (
+            <button 
+              onClick={() => setView('users')}
+              className={`w-full p-3 rounded-xl flex items-center gap-3 font-semibold transition-colors ${view === 'users' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'}`}
+            >
+              <Users size={20} />
+              Manajemen Pengguna
+            </button>
+          )}
         </nav>
 
         <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col gap-4">
@@ -152,7 +194,7 @@ export default function App() {
             </div>
             <div className="flex flex-col min-w-0">
                <span className="text-xs font-bold text-slate-800 truncate">{currentUser}</span>
-               <span className="text-[9px] text-slate-400 font-bold uppercase">Operator</span>
+               <span className="text-[9px] text-slate-400 font-bold uppercase">{currentUserRole === 'admin' ? 'Administrator' : 'Operator'}</span>
             </div>
           </div>
           
@@ -179,7 +221,7 @@ export default function App() {
         <header className="flex justify-between items-center px-8 py-6 bg-white/80 backdrop-blur-md border-b border-slate-200 shrink-0">
           <div>
             <h2 className="text-xl font-bold tracking-tight">
-              {view === 'list' ? 'Database PTSL Desa Wongsorejo' : editingRow ? 'Update Data' : 'Form Input Baru'}
+              {view === 'list' ? 'Database PTSL Desa Wongsorejo' : view === 'users' ? 'Manajemen Pengguna' : editingRow ? 'Update Data' : 'Form Input Baru'}
             </h2>
             <p className="text-[11px] text-slate-500 font-medium">Manajemen Data Pendaftaran Tanah Sistematis Lengkap.</p>
           </div>
@@ -210,7 +252,9 @@ export default function App() {
                 onExport={handleExport}
               />
             </div>
-          ) : (
+          ) : view === 'users' && currentUserRole === 'admin' ? (
+            <UserManagement />
+          ) : view === 'form' ? (
             <div className="max-w-6xl mx-auto p-8">
               <PTSLForm 
                 initialData={editingRow}
@@ -221,11 +265,11 @@ export default function App() {
                 }}
               />
             </div>
-          )}
+          ) : null}
         </div>
 
         {/* Floating Import Action in List View */}
-        {view === 'list' && (
+        {view === 'list' && currentUserRole === 'admin' && (
           <div className="fixed bottom-8 right-8 flex flex-col items-end gap-2 z-40">
             {showImport && (
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-2xl mb-4 animate-in slide-in-from-bottom-4 w-[320px]">
@@ -267,13 +311,94 @@ export default function App() {
                     />
                   </div>
 
+                  <div className="pt-4 border-t border-slate-100 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold text-indigo-700 uppercase flex items-center gap-1.5">
+                        <Link size={10} />
+                        Konfigurasi Google Sheets:
+                      </p>
+                      <button 
+                        onClick={() => alert('CARA SINKRONISASI:\n1. Buka Google Sheet Anda\n2. Klik tombol "Share" (Bagikan) di pojok kanan atas\n3. Ubah akses dari "Restricted" menjadi "Anyone with the link" (Siapa saja yang memiliki link)\n4. Copy URL atau ID Sheet dan tempel di sini.')}
+                        className="text-[9px] font-bold text-slate-400 hover:text-indigo-600 flex items-center gap-1"
+                      >
+                        <HelpCircle size={10} />
+                        CARA PAKAI
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase">Database Utama (ID/URL):</label>
+                        <div className="flex gap-1.5">
+                          <input 
+                            type="text"
+                            value={gsheetIdUtama}
+                            onChange={(e) => setGsheetIdUtama(e.target.value)}
+                            placeholder="Paste ID atau Link Sheet..."
+                            className="flex-1 text-[10px] p-1.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-rose-500 font-mono"
+                          />
+                          <button 
+                            onClick={() => handleSyncGSheet('UTAMA')}
+                            disabled={isSyncing}
+                            className="px-2 bg-rose-500 text-white rounded-lg hover:bg-rose-600 disabled:opacity-50 transition-colors"
+                          >
+                            {isSyncing ? <RefreshCw size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase">Database Warga (ID/URL):</label>
+                        <div className="flex gap-1.5">
+                          <input 
+                            type="text"
+                            value={gsheetIdWarga}
+                            onChange={(e) => setGsheetIdWarga(e.target.value)}
+                            placeholder="Paste ID atau Link Sheet..."
+                            className="flex-1 text-[10px] p-1.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-mono"
+                          />
+                          <button 
+                            onClick={() => handleSyncGSheet('WARGA')}
+                            disabled={isSyncing}
+                            className="px-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                          >
+                            {isSyncing ? <RefreshCw size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase">Database SPPT (ID/URL):</label>
+                        <div className="flex gap-1.5">
+                          <input 
+                            type="text"
+                            value={gsheetIdSppt}
+                            onChange={(e) => setGsheetIdSppt(e.target.value)}
+                            placeholder="Paste ID atau Link Sheet..."
+                            className="flex-1 text-[10px] p-1.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-orange-500 font-mono"
+                          />
+                          <button 
+                            onClick={() => handleSyncGSheet('SPPT')}
+                            disabled={isSyncing}
+                            className="px-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 transition-colors"
+                          >
+                            {isSyncing ? <RefreshCw size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-[9px] text-slate-400 italic">
+                      *Sheet pertama (Sheet1) akan digunakan sebagai database.
+                    </p>
+                  </div>
+
                   <div className="pt-4 border-t border-slate-100 space-y-2">
                     <p className="text-[10px] font-bold text-slate-800 mb-2 uppercase">Pengaturan Memori:</p>
                     <div className="grid grid-cols-2 gap-2">
                        <button 
-                        onClick={() => {
+                        onClick={async () => {
                           if(confirm('Hapus semua data referensi Warga?')) {
-                            localStorage.removeItem('ref_warga');
+                            await dbService.clearRefData('WARGA');
                             alert('Data Warga dibersihkan');
                           }
                         }}
@@ -282,9 +407,9 @@ export default function App() {
                         Hapus Ref Warga
                       </button>
                       <button 
-                        onClick={() => {
+                        onClick={async () => {
                           if(confirm('Hapus semua data referensi SPPT?')) {
-                            localStorage.removeItem('ref_sppt');
+                            await dbService.clearRefData('SPPT');
                             alert('Data SPPT dibersihkan');
                           }
                         }}

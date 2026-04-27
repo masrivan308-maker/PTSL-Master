@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
-import { ShieldCheck, User, Lock, ArrowRight, UserPlus } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { ShieldCheck, User, Lock, ArrowRight } from 'lucide-react';
+import { motion } from 'motion/react';
 import { dbService } from '../dbService';
 
 interface Props {
-  onLogin: (username: string) => void;
+  onLogin: (user: any) => void;
 }
 
 export const Login: React.FC<Props> = ({ onLogin }) => {
-  const [isRegister, setIsRegister] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
@@ -19,21 +18,11 @@ export const Login: React.FC<Props> = ({ onLogin }) => {
       return;
     }
 
-    if (isRegister) {
-      try {
-        dbService.registerUser(username, password);
-        alert('✅ AKUN BERHASIL DIBUAT\nSilakan login menggunakan akun baru Anda.');
-        setIsRegister(false);
-      } catch (err: any) {
-        alert('❌ GAGAL DAFTAR\n' + err.message);
-      }
+    const user = dbService.authenticate(username, password);
+    if (user) {
+      onLogin(user);
     } else {
-      const user = dbService.authenticate(username, password);
-      if (user) {
-        onLogin(user.username);
-      } else {
-        alert('❌ LOGIN GAGAL\nUsername atau Password salah.');
-      }
+      alert('❌ LOGIN GAGAL\nUsername atau Password salah.');
     }
   };
 
@@ -53,13 +42,13 @@ export const Login: React.FC<Props> = ({ onLogin }) => {
             
             <div className="relative z-10">
               <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
-                {isRegister ? <UserPlus size={32} /> : <ShieldCheck size={32} />}
+                <ShieldCheck size={32} />
               </div>
               <h1 className="text-2xl font-bold tracking-tight">
-                {isRegister ? 'DAFTAR AKUN' : 'SISTEM PTSL'}
+                SISTEM PTSL
               </h1>
               <p className="text-indigo-100 text-sm mt-1">
-                {isRegister ? 'Buat operator baru untuk sistem' : 'Silakan masuk untuk melanjutkan'}
+                Silakan masuk untuk melanjutkan
               </p>
             </div>
           </div>
@@ -104,16 +93,8 @@ export const Login: React.FC<Props> = ({ onLogin }) => {
                 type="submit"
                 className="w-full bg-indigo-600 text-white rounded-2xl py-4 font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 hover:scale-[1.02] active:scale-[0.98]"
               >
-                <span>{isRegister ? 'Daftar Sekarang' : 'Masuk Aplikasi'}</span>
+                <span>Masuk Aplikasi</span>
                 <ArrowRight size={18} />
-              </button>
-
-              <button 
-                type="button"
-                onClick={() => setIsRegister(!isRegister)}
-                className="w-full text-[11px] font-bold text-slate-400 hover:text-indigo-600 uppercase tracking-widest transition-colors"
-              >
-                {isRegister ? 'Sudah punya akun? Login' : 'Belum punya akun? Daftar Baru'}
               </button>
             </div>
 

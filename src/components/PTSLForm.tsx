@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { PTSLSchema, PTSLData, DEFAULT_VALUES } from '../types';
@@ -21,8 +21,54 @@ const SECTIONS = [
   { id: 'admin', title: 'Administratif', icon: <Save size={16} />, color: 'slate' },
 ];
 
+const parseDateStringToFormat = (dateStr: string | number): string => {
+  if (!dateStr) return '';
+  
+  // Handle Excel serial date (e.g., 33706.00013888889 for 12 Apr 1992)
+  if (typeof dateStr === 'number' || (typeof dateStr === 'string' && !isNaN(Number(dateStr)))) {
+    const serial = Number(dateStr);
+    if (serial > 10000 && serial < 100000) { // arbitrary bound for valid dates (approx 1927 to 2173)
+      const utc_days = Math.floor(serial - 25569);
+      const utc_value = utc_days * 86400;
+      const d = new Date(utc_value * 1000);
+      const day = String(d.getUTCDate()).padStart(2, '0');
+      const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const year = d.getUTCFullYear();
+      return `${day}/${month}/${year}`;
+    }
+  }
+
+  const str = String(dateStr).trim();
+  
+  // If already DD/MM/YYYY
+  if (/^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4}$/.test(str)) {
+     // Ensure / is used
+     return str.replace(/[\-\.]/g, '/');
+  }
+
+  // If YYYY-MM-DD
+  const yMdMatch = str.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+  if (yMdMatch) {
+    let [_, y, m, d] = yMdMatch;
+    return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
+  }
+
+  try {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+  } catch (e) {}
+  
+  return str;
+};
+
 export const PTSLForm: React.FC<Props> = ({ initialData, onSave, onCancel }) => {
   const [activeSection, setActiveSection] = useState(0);
+  const [isCustomBukti, setIsCustomBukti] = useState(false);
   
   const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm<PTSLData>({
     resolver: zodResolver(PTSLSchema),
@@ -33,14 +79,31 @@ export const PTSLForm: React.FC<Props> = ({ initialData, onSave, onCancel }) => 
   const nopValue = watch('nopSppt');
   const nikSaksi1 = watch('nikSaksi1');
   const nikSaksi2 = watch('nikSaksi2');
+  const buktiValue = watch('buktiPerolehan');
 
-  const handleLookupWarga = () => {
+  const BUKTI_OPTIONS = [
+    'Surat Pernyataan Hibah',
+    'Surat Pernyataan Waris',
+    'Surat Pernyataan Jual Beli',
+    'Akte',
+    'Kwitansi'
+  ];
+
+  useEffect(() => {
+    if (buktiValue && !BUKTI_OPTIONS.includes(buktiValue)) {
+      setIsCustomBukti(true);
+    } else if (BUKTI_OPTIONS.includes(buktiValue)) {
+      setIsCustomBukti(false);
+    }
+  }, [buktiValue]);
+
+  const handleLookupWarga = async () => {
     console.log('Searching NIK:', nikValue);
     if (!nikValue) {
       alert('⚠️ PERINGATAN\nSilakan masukkan NIK terlebih dahulu.');
       return;
     }
-    const refData = dbService.getRefWarga();
+    const refData = await dbService.getRefWarga();
     const found = refData.find(v => 
       String(v.NIK || v['NO KTP'] || v.noKtp || '').includes(nikValue)
     );
@@ -48,7 +111,7 @@ export const PTSLForm: React.FC<Props> = ({ initialData, onSave, onCancel }) => 
     if (found) {
       setValue('nama', found.NAMA || found.nama || '');
       setValue('tempatLahir', found['TEMPAT LAHIR'] || found.tempatLahir || '');
-      setValue('tanggalLahir', found['TANGGAL LAHIR'] || found.tanggalLahir || '');
+      setValue('tanggalLahir', parseDateStringToFormat(found['TANGGAL LAHIR'] || found.tanggalLahir || ''));
       setValue('alamat', found.ALAMAT || found.alamat || '');
       setValue('rtRw', found['RT/RW'] || found.rtRw || '');
       setValue('kelDesa', found['KEL/DESA'] || found.kelDesa || '');
@@ -61,12 +124,12 @@ export const PTSLForm: React.FC<Props> = ({ initialData, onSave, onCancel }) => 
     }
   };
 
-  const handleLookupSppt = () => {
+  const handleLookupSppt = async () => {
     if (!nopValue) {
       alert('⚠️ PERINGATAN\nSilakan masukkan NOP terlebih dahulu.');
       return;
     }
-    const refData = dbService.getRefSppt();
+    const refData = await dbService.getRefSppt();
     const found = refData.find(v => 
       String(v.NOP || v['NOP SPPT'] || v.nopSppt || '').includes(nopValue)
     );
@@ -97,9 +160,9 @@ export const PTSLForm: React.FC<Props> = ({ initialData, onSave, onCancel }) => 
     }
   };
 
-  const handleLookupSaksi = (nik: string, saksiNum: 1 | 2) => {
+  const handleLookupSaksi = async (nik: string, saksiNum: 1 | 2) => {
     if (!nik) return alert('Masukkan NIK Saksi terlebih dahulu');
-    const refData = dbService.getRefWarga();
+    const refData = await dbService.getRefWarga();
     const found = refData.find(v => 
       String(v.NIK || v['NO KTP'] || v.noKtp || '').includes(nik)
     );
@@ -132,13 +195,13 @@ export const PTSLForm: React.FC<Props> = ({ initialData, onSave, onCancel }) => 
           {...register(name as any)}
           className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
         >
-          {options?.map(o => <option key={o} value={o}>{o}</option>)}
+          {options?.map(o => <option key={o} value={o}>{o === '' ? 'Pilih...' : o}</option>)}
         </select>
       ) : (
         <input
           type={type}
           {...register(name as any)}
-          className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all font-medium"
+          className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
         />
       )}
       {errors[name] && (
@@ -241,7 +304,7 @@ export const PTSLForm: React.FC<Props> = ({ initialData, onSave, onCancel }) => 
                       </div>
                       {renderField('nama', 'NAMA LENGKAP')}
                       {renderField('tempatLahir', 'TEMPAT LAHIR')}
-                      {renderField('tanggalLahir', 'TANGGAL LAHIR', 'date')}
+                      {renderField('tanggalLahir', 'TANGGAL LAHIR (DD/MM/YYYY)', 'text')}
                       {renderField('pekerjaan', 'PEKERJAAN')}
                       {renderField('noHp', 'NOMOR HANDPHONE')}
                       <div className="md:col-span-2">
@@ -293,7 +356,38 @@ export const PTSLForm: React.FC<Props> = ({ initialData, onSave, onCancel }) => 
                     <>
                       {renderField('luasDimohon', 'LUAS DIMOHON')}
                       {renderField('diperolehMelalui', 'DIPEROLEH MELALUI', 'select', ['Jual Beli', 'Waris', 'Hibah', 'Tukar Menukar', 'Pemberian Hak'])}
-                      {renderField('buktiPerolehan', 'BUKTI PEROLEHAN')}
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">
+                          BUKTI PEROLEHAN
+                        </label>
+                        <select
+                          className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                          value={isCustomBukti ? 'custom' : (buktiValue || '')}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === 'custom') {
+                              setIsCustomBukti(true);
+                              setValue('buktiPerolehan', '');
+                            } else {
+                              setIsCustomBukti(false);
+                              setValue('buktiPerolehan', val);
+                            }
+                          }}
+                        >
+                          <option value="" disabled>Pilih Bukti Perolehan</option>
+                          {BUKTI_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                          <option value="custom">Keterangan lainnya..</option>
+                        </select>
+                        {isCustomBukti && (
+                          <input
+                            type="text"
+                            placeholder="Masukkan bukti perolehan lainnya..."
+                            {...register('buktiPerolehan')}
+                            className="mt-2 w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                            autoFocus
+                          />
+                        )}
+                      </div>
                       {renderField('pemilikKe1Petok', 'PEMILIK KE-1')}
                       {renderField('pemilikKe2', 'PEMILIK KE-2')}
                       {renderField('pemilikKe3Pemohon', 'PEMILIK KE-3 (PEMOHON)')}
@@ -304,7 +398,7 @@ export const PTSLForm: React.FC<Props> = ({ initialData, onSave, onCancel }) => 
                       <div className="grid grid-cols-3 gap-5">
                         {renderField('petokC', 'PETOK C')}
                         {renderField('noPersil', 'NO PERSIL')}
-                        {renderField('kelas', 'KELAS')}
+                        {renderField('kelas', 'KELAS', 'select', ['', 'D.I', 'D.II', 'D.III', 'D.IV', 'S.I', 'S.II', 'S.III', 'S.IV'])}
                       </div>
                       {renderField('luas3', 'LUAS (RIWAYAT)')}
                       {renderField('pertanianNonPertanian', 'JENIS TANAH', 'select', ['Pertanian', 'Non Pertanian'])}

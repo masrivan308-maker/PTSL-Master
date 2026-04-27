@@ -151,7 +151,7 @@ export const PTSLList: React.FC<Props> = ({ rows, onAdd, onEdit, onDelete, onExp
                         className="bg-slate-50/30"
                       >
                         <td colSpan={4} className="px-6 py-6 border-b border-slate-100 shadow-inner">
-                          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                             <div className="space-y-3">
                               <h4 className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest border-b border-indigo-100 pb-2">Detail Pemohon</h4>
                               <div className="space-y-2">
@@ -178,21 +178,41 @@ export const PTSLList: React.FC<Props> = ({ rows, onAdd, onEdit, onDelete, onExp
                                 <InfoLabel label="Petok C" value={row.petokC} />
                                 <InfoLabel label="Persil / Kelas" value={`${row.noPersil} / ${row.kelas}`} />
                                 <InfoLabel label="Dusun/Blok" value={`${row.dusunJalanGang} / ${row.blok}`} />
+                                <InfoLabel label="Luas Dimohon" value={`${row.luasDimohon} m²`} />
                                 <InfoLabel label="Jenis" value={row.pertanianNonPertanian} />
+                                <InfoLabel label="Diperoleh / Bukti" value={`${row.diperolehMelalui} / ${row.buktiPerolehan}`} />
                               </div>
                             </div>
 
                             <div className="space-y-3">
                               <h4 className="text-[10px] font-bold text-rose-600 uppercase tracking-widest border-b border-rose-100 pb-2">Batas-Batas</h4>
-                              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                              <div className="space-y-2">
                                 <InfoLabel label="Utara" value={row.utara} />
                                 <InfoLabel label="Timur" value={row.timur} />
                                 <InfoLabel label="Selatan" value={row.selatan} />
                                 <InfoLabel label="Barat" value={row.barat} />
                               </div>
-                              <div className="pt-2">
-                                 <InfoLabel label="Saksi 1" value={row.namaSaksi1} />
-                                 <InfoLabel label="Saksi 2" value={row.namaSaksi2} />
+                            </div>
+                            
+                            <div className="space-y-3">
+                              <h4 className="text-[10px] font-bold text-amber-600 uppercase tracking-widest border-b border-amber-100 pb-2">Data Saksi</h4>
+                              <div className="space-y-3">
+                                <div>
+                                  <span className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Saksi 1</span>
+                                  <div className="space-y-1">
+                                    <InfoLabel label="Nama / NIK" value={`${row.namaSaksi1 || '-'} / ${row.nikSaksi1 || '-'}`} />
+                                    <InfoLabel label="Pekerjaan" value={row.pekerjaanSaksi1 || '-'} />
+                                    <InfoLabel label="Alamat" value={row.alamatSaksi1 || '-'} />
+                                  </div>
+                                </div>
+                                <div className="pt-2 border-t border-slate-100">
+                                  <span className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Saksi 2</span>
+                                  <div className="space-y-1">
+                                    <InfoLabel label="Nama / NIK" value={`${row.namaSaksi2 || '-'} / ${row.nikSaksi2 || '-'}`} />
+                                    <InfoLabel label="Pekerjaan" value={row.pekerjaanSaksi2 || '-'} />
+                                    <InfoLabel label="Alamat" value={row.alamatSaksi2 || '-'} />
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           </div>
