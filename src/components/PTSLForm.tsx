@@ -75,7 +75,23 @@ export const PTSLForm: React.FC<Props> = ({ initialData, onSave, onCancel }) => 
       setValue('namaWajibPajak', found['NAMA WAJIB PAJAK'] || found.namaWajibPajak || '');
       setValue('luasSppt', String(found['LUAS SPPT'] || found.luasSppt || '0'));
       setValue('njopPermeter', String(found['NJOP PERMETER'] || found.njopPermeter || '0'));
-      alert('✅ DATA SPPT DITEMUKAN\nInformasi objek pajak telah diisi otomatis.');
+      
+      // Populate Lokasi & Objek (Section 3) fields
+      const dusunVal = found.DUSUN || found.dusun || found['ALAMAT OP'] || found['DUSUN/JALAN'] || found['DUSUN / JALAN'] || '';
+      const blokVal = found.BLOK || found.blok || found['NO BLOK'] || '';
+      const rtVal = found.RT || found.rt || '';
+      const rwVal = found.RW || found.rw || '';
+      const desaVal = found.DESA || found.desa || found['KEL/DESA'] || '';
+      const kecVal = found.KECAMATAN || found.kecamatan || found['KECAMATAN LOKASI'] || '';
+
+      if (dusunVal) setValue('dusunJalanGang', String(dusunVal));
+      if (blokVal) setValue('blok', String(blokVal));
+      if (rtVal) setValue('rt', String(rtVal));
+      if (rwVal) setValue('rw', String(rwVal));
+      if (desaVal) setValue('desa', String(desaVal));
+      if (kecVal) setValue('kecamatanLokasi', String(kecVal));
+      
+      alert('✅ DATA SPPT DITEMUKAN\nInformasi objek pajak dan lokasi telah diisi otomatis.');
     } else {
       alert('❌ DATA TIDAK DITEMUKAN\nNOP: ' + nopValue + ' tidak ada dalam database referensi.');
     }

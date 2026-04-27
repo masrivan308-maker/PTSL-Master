@@ -71,7 +71,23 @@ export const dbService = {
 
   // Reference Database Methods
   saveRefWarga: (data: any[]) => {
-    localStorage.setItem(REF_WARGA_KEY, JSON.stringify(data));
+    try {
+      // Optimize storage: only keep columns we actually use in the form lookup
+      const keysToKeep = ['NIK', 'NAMA', 'TEMPAT LAHIR', 'TANGGAL LAHIR', 'ALAMAT', 'RT/RW', 'KEL/DESA', 'KECAMATAN', 'PEKERJAAN', 'NO HP', 'noKtp', 'nama', 'tempatLahir', 'tanggalLahir', 'alamat', 'rtRw', 'kelDesa', 'kecamatan', 'pekerjaan', 'noHp'];
+      const optimizedData = data.map(row => {
+        const newRow: any = {};
+        keysToKeep.forEach(key => {
+          if (row[key] !== undefined) newRow[key] = row[key];
+        });
+        return newRow;
+      });
+      localStorage.setItem(REF_WARGA_KEY, JSON.stringify(optimizedData));
+    } catch (e: any) {
+      if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+        throw new Error('STORAGE_FULL');
+      }
+      throw e;
+    }
   },
 
   getRefWarga: (): any[] => {
@@ -80,7 +96,23 @@ export const dbService = {
   },
 
   saveRefSppt: (data: any[]) => {
-    localStorage.setItem(REF_SPPT_KEY, JSON.stringify(data));
+    try {
+      // Optimize storage for SPPT
+      const keysToKeep = ['NOP', 'NAMA WAJIB PAJAK', 'LUAS SPPT', 'NJOP PERMETER', 'DUSUN', 'BLOK', 'RT', 'RW', 'DESA', 'KECAMATAN', 'nopSppt', 'namaWajibPajak', 'luasSppt', 'njopPermeter', 'dusunJalanGang', 'desa', 'kecamatanLokasi'];
+      const optimizedData = data.map(row => {
+        const newRow: any = {};
+        keysToKeep.forEach(key => {
+          if (row[key] !== undefined) newRow[key] = row[key];
+        });
+        return newRow;
+      });
+      localStorage.setItem(REF_SPPT_KEY, JSON.stringify(optimizedData));
+    } catch (e: any) {
+      if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+        throw new Error('STORAGE_FULL');
+      }
+      throw e;
+    }
   },
 
   getRefSppt: (): any[] => {
@@ -187,7 +219,7 @@ export const dbService = {
       headers = ['NIK', 'NAMA', 'TEMPAT LAHIR', 'TANGGAL LAHIR', 'ALAMAT', 'RT/RW', 'KEL/DESA', 'KECAMATAN', 'PEKERJAAN', 'NO HP'];
       filename = 'Template_Referensi_Warga.xlsx';
     } else if (type === 'SPPT') {
-      headers = ['NOP', 'NAMA WAJIB PAJAK', 'LUAS SPPT', 'NJOP PERMETER'];
+      headers = ['NOP', 'NAMA WAJIB PAJAK', 'LUAS SPPT', 'NJOP PERMETER', 'DUSUN', 'BLOK', 'RT', 'RW', 'DESA', 'KECAMATAN'];
       filename = 'Template_Referensi_SPPT.xlsx';
     }
 

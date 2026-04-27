@@ -78,9 +78,13 @@ export default function App() {
         const imported = await dbService.importFromExcel(file);
         dbService.saveRefWarga(imported);
         setShowImport(false);
-        alert(`Berhasil mengimpor ${imported.length} data referensi Warga!`);
-      } catch (err) {
-        alert('Error importing file referensi.');
+        alert(`✅ BERHASIL\nMengimpor ${imported.length} data referensi Warga!`);
+      } catch (err: any) {
+        if (err.message === 'STORAGE_FULL') {
+          alert('❌ MEMORI PENUH\nFile Excel terlalu besar untuk disimpan di browser. Silakan kurangi jumlah baris data atau hapus data lama terlebih dahulu.');
+        } else {
+          alert('❌ ERROR\nTerjadi kesalahan saat mengimpor file. Pastikan format kolom sesuai.');
+        }
       }
     }
   };
@@ -92,9 +96,13 @@ export default function App() {
         const imported = await dbService.importFromExcel(file);
         dbService.saveRefSppt(imported);
         setShowImport(false);
-        alert(`Berhasil mengimpor ${imported.length} data referensi SPPT!`);
-      } catch (err) {
-        alert('Error importing file referensi.');
+        alert(`✅ BERHASIL\nMengimpor ${imported.length} data referensi SPPT!`);
+      } catch (err: any) {
+        if (err.message === 'STORAGE_FULL') {
+          alert('❌ MEMORI PENUH\nFile Excel terlalu besar untuk disimpan di browser. Silakan kurangi jumlah baris data atau hapus data lama terlebih dahulu.');
+        } else {
+          alert('❌ ERROR\nTerjadi kesalahan saat mengimpor file. Pastikan format kolom sesuai.');
+        }
       }
     }
   };
@@ -257,6 +265,37 @@ export default function App() {
                       onChange={handleImportRefSppt}
                       className="text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-orange-50 file:text-orange-600 cursor-pointer"
                     />
+                  </div>
+
+                  <div className="pt-4 border-t border-slate-100 space-y-2">
+                    <p className="text-[10px] font-bold text-slate-800 mb-2 uppercase">Pengaturan Memori:</p>
+                    <div className="grid grid-cols-2 gap-2">
+                       <button 
+                        onClick={() => {
+                          if(confirm('Hapus semua data referensi Warga?')) {
+                            localStorage.removeItem('ref_warga');
+                            alert('Data Warga dibersihkan');
+                          }
+                        }}
+                        className="text-[9px] font-bold py-2 bg-rose-50 hover:bg-rose-100 rounded text-rose-600 transition-colors uppercase"
+                      >
+                        Hapus Ref Warga
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if(confirm('Hapus semua data referensi SPPT?')) {
+                            localStorage.removeItem('ref_sppt');
+                            alert('Data SPPT dibersihkan');
+                          }
+                        }}
+                        className="text-[9px] font-bold py-2 bg-rose-50 hover:bg-rose-100 rounded text-rose-600 transition-colors uppercase"
+                      >
+                        Hapus Ref SPPT
+                      </button>
+                    </div>
+                    <p className="text-[9px] text-slate-400 font-medium italic mt-2">
+                      *Gunakan ini jika memori penuh saat import data baru.
+                    </p>
                   </div>
 
                   <div className="pt-4 border-t border-slate-100 space-y-2">
