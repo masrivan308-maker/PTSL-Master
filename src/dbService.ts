@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import { PTSLData, DEFAULT_VALUES } from './types';
 import { db, auth } from './firebase';
-import { collection, doc, setDoc, deleteDoc, getDocs, onSnapshot, query, addDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, getDocs, onSnapshot, query, addDoc, updateDoc, writeBatch } from 'firebase/firestore';
 
 export enum OperationType {
   CREATE = 'create',
@@ -138,14 +138,20 @@ export const dbService = {
 
   saveRefWarga: async (dataList: any[]) => {
     try {
-      for (const row of dataList) {
-        if (row.id) {
-          await setDoc(doc(db, COL_WARGA, row.id), row);
-        } else {
-          const docRef = doc(collection(db, COL_WARGA));
-          row.id = docRef.id;
-          await setDoc(docRef, row);
+      const CHUNK_SIZE = 400;
+      for (let i = 0; i < dataList.length; i += CHUNK_SIZE) {
+        const chunk = dataList.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        for (const row of chunk) {
+          if (row.id) {
+            batch.set(doc(db, COL_WARGA, row.id), row);
+          } else {
+            const docRef = doc(collection(db, COL_WARGA));
+            row.id = docRef.id;
+            batch.set(docRef, row);
+          }
         }
+        await batch.commit();
       }
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, COL_WARGA);
@@ -154,14 +160,20 @@ export const dbService = {
 
   saveRefSppt: async (dataList: any[]) => {
     try {
-      for (const row of dataList) {
-        if (row.id) {
-          await setDoc(doc(db, COL_SPPT, row.id), row);
-        } else {
-          const docRef = doc(collection(db, COL_SPPT));
-          row.id = docRef.id;
-          await setDoc(docRef, row);
+      const CHUNK_SIZE = 400;
+      for (let i = 0; i < dataList.length; i += CHUNK_SIZE) {
+        const chunk = dataList.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        for (const row of chunk) {
+          if (row.id) {
+            batch.set(doc(db, COL_SPPT, row.id), row);
+          } else {
+            const docRef = doc(collection(db, COL_SPPT));
+            row.id = docRef.id;
+            batch.set(docRef, row);
+          }
         }
+        await batch.commit();
       }
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, COL_SPPT);

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { dbService } from '../dbService';
-import { ShieldCheck, Database, Search, Edit2, Trash2, PlusCircle, X, CheckCircle, Save } from 'lucide-react';
+import { ShieldCheck, Database, Search, Edit2, Trash2, PlusCircle, X, CheckCircle, Save, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import * as XLSX from 'xlsx';
 
 type DataSource = 'WARGA' | 'SPPT';
 
@@ -15,6 +16,54 @@ export const MasterDataManagement: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState<any>(null);
   const [formData, setFormData] = useState<any>({});
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsUploading(true);
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" }); // Convert to JSON
+      
+      if (json.length === 0) {
+        alert("File kosong atau format salah.");
+        return;
+      }
+      
+      // Clean up headers (assuming first row is headers) and stringify fields if needed
+      const cleanData = json.map((row: any) => {
+        const cleanRow: any = {};
+        for (const key in row) {
+          const cleanKey = key.trim();
+          cleanRow[cleanKey] = String(row[key]).trim(); // Convert to string
+        }
+        return cleanRow;
+      });
+
+      if (activeTab === 'WARGA') {
+        await dbService.saveRefWarga(cleanData);
+      } else {
+        await dbService.saveRefSppt(cleanData);
+      }
+      alert(`Berhasil mengunggah ${cleanData.length} data ${activeTab}.`);
+    } catch (error: any) {
+      console.error(error);
+      alert(`Gagal mengunggah file: ${error.message}`);
+    } finally {
+      setIsUploading(false);
+      // reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
 
   useEffect(() => {
     const unsubWarga = dbService.listenWarga((data) => setWargaData(data));
@@ -95,13 +144,30 @@ export const MasterDataManagement: React.FC = () => {
           <h2 className="text-2xl font-bold tracking-tight text-slate-800">Manajemen Data Master</h2>
           <p className="text-sm text-slate-500">Kelola langsung referensi Data Warga dan Data SPPT.</p>
         </div>
-        <button 
-          onClick={() => handleOpenModal()}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-lg flex items-center gap-2 font-bold hover:bg-indigo-700 transition"
-        >
-          <PlusCircle size={18} />
-          Tambah Data {activeTab === 'WARGA' ? 'Warga' : 'SPPT'}
-        </button>
+        <div className="flex gap-3">
+          <input 
+            type="file" 
+            accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+            ref={fileInputRef}
+            className="hidden"
+            onChange={handleFileUpload}
+          />
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="px-4 py-2 bg-emerald-600 text-white rounded-lg flex items-center gap-2 font-bold hover:bg-emerald-700 transition disabled:opacity-50"
+          >
+            <Upload size={18} />
+            {isUploading ? 'Mengunggah...' : `Unggah Data ${activeTab === 'WARGA' ? 'Warga' : 'SPPT'}`}
+          </button>
+          <button 
+            onClick={() => handleOpenModal()}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg flex items-center gap-2 font-bold hover:bg-indigo-700 transition"
+          >
+            <PlusCircle size={18} />
+            Tambah Data {activeTab === 'WARGA' ? 'Warga' : 'SPPT'}
+          </button>
+        </div>
       </div>
 
       <div className="flex bg-slate-100 p-1 rounded-xl mb-6 w-fit">
