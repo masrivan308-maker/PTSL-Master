@@ -1,263 +1,206 @@
 import * as XLSX from 'xlsx';
-import { PTSLData } from './types';
-import { MASTER_WARGA_DATA } from './data/masterWarga';
-import localforage from 'localforage';
+import { PTSLData, DEFAULT_VALUES } from './types';
+import { db, auth } from './firebase';
+import { collection, doc, setDoc, deleteDoc, getDocs, onSnapshot, query, addDoc, updateDoc } from 'firebase/firestore';
 
-localforage.config({
-  name: 'PTSL_DB',
-  storeName: 'ptsl_references'
-});
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
 
-const STORAGE_KEY = 'ptsl_database';
-const REF_WARGA_KEY = 'ref_warga';
-const REF_SPPT_KEY = 'ref_sppt';
-const USERS_KEY = 'ptsl_users';
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+// Collections setup
+const COL_PTSL = 'ptsl_data';
+const COL_WARGA = 'master_warga';
+const COL_SPPT = 'master_sppt';
+const COL_USERS = 'users';
 
 export const dbService = {
-  // User Management
-  getUsers: (): any[] => {
-    let data = localStorage.getItem(USERS_KEY);
-    let users = data ? JSON.parse(data) : [];
-    
-    // Seed default admin if no users exist or admin doesn't exist
-    if (!users.find((u: any) => u.username === 'admin')) {
-      users.push({ username: 'admin', password: 'password123', role: 'admin' });
-      localStorage.setItem(USERS_KEY, JSON.stringify(users));
-    }
-
-    // Backfill roles for older users
-    return users.map((u: any) => ({ ...u, role: u.role || 'operator' }));
+  // --- REAL-TIME LISTENERS ---
+  listenPTSL: (callback: (data: PTSLData[]) => void) => {
+    const q = query(collection(db, COL_PTSL));
+    return onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PTSLData));
+      callback(data);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, COL_PTSL));
   },
 
-  registerUser: (username: string, password: string, role: string = 'operator') => {
-    const users = dbService.getUsers();
-    if (users.find(u => u.username === username)) {
-      throw new Error('Username sudah digunakan');
-    }
-    users.push({ username, password, role });
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  listenWarga: (callback: (data: any[]) => void) => {
+    const q = query(collection(db, COL_WARGA));
+    return onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      callback(data);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, COL_WARGA));
   },
 
-  updateUser: (oldUsername: string, updatedData: any) => {
-    const users = dbService.getUsers();
-    const index = users.findIndex(u => u.username === oldUsername);
-    if (index === -1) throw new Error('User tidak ditemukan');
-    
-    // check if changing to an existing username
-    if (updatedData.username !== oldUsername && users.find(u => u.username === updatedData.username)) {
-      throw new Error('Username sudah digunakan');
-    }
-
-    users[index] = { ...users[index], ...updatedData };
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  listenSppt: (callback: (data: any[]) => void) => {
+    const q = query(collection(db, COL_SPPT));
+    return onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      callback(data);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, COL_SPPT));
   },
 
-  deleteUser: (username: string) => {
-    let users = dbService.getUsers();
-    users = users.filter(u => u.username !== username);
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  listenUsers: (callback: (data: any[]) => void) => {
+    const q = query(collection(db, COL_USERS));
+    return onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      callback(data);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, COL_USERS));
   },
 
-  authenticate: (username: string, password: string) => {
-    const users = dbService.getUsers();
-    return users.find(u => u.username === username && u.password === password);
-  },
-
-  clearAllRows: () => {
-    localStorage.removeItem(STORAGE_KEY);
-  },
-
-  // Google Sheets Sync
-  syncWithGoogleSheet: async (input: string): Promise<any[]> => {
-    // Extract ID if full URL is provided
-    let sheetId = input.trim();
-    if (input.includes('/d/')) {
-      if (input.includes('/d/e/')) {
-         const match = input.match(/\/d\/e\/([a-zA-Z0-9-_]+)/);
-         if (match && match[1]) {
-            throw new Error('Link yang Anda masukkan adalah link "Publish to web" (/d/e/...). Silakan gunakan link dari tombol "Share" yang biasa (yang berisi /d/ dan bukan /d/e/).');
-         }
-      } else {
-         const match = input.match(/\/d\/([a-zA-Z0-9-_]+)/);
-         if (match && match[1]) {
-           sheetId = match[1];
-         }
-      }
-    }
-
+  // --- CRUD OPERATIONS ---
+  saveRow: async (row: PTSLData): Promise<void> => {
     try {
-      // Format URL using Google Visualization API (supports CORS and 'Anyone with link' sharing)
-      let url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
+      const dataToSave = { ...row };
+      if (!dataToSave.createdAt) dataToSave.createdAt = new Date().toISOString();
       
-      let response;
-      try {
-        response = await fetch(url, { method: 'GET' });
-      } catch (fetchError) {
-        throw new Error('Gagal mengakses link. Pastikan akses Share Google Sheet disetel "Anyone with the link" (Siapa saja yang memiliki link) tanpa batasan internal/organisasi.');
+      if (row.id) {
+        await setDoc(doc(db, COL_PTSL, row.id), dataToSave);
+      } else {
+        const docRef = doc(collection(db, COL_PTSL)); // auto id
+        dataToSave.id = docRef.id;
+        await setDoc(docRef, dataToSave);
       }
-
-      if (!response.ok) {
-        // Fallback to publish to web URL
-        url = `https://docs.google.com/spreadsheets/d/${sheetId}/pub?output=csv&gid=0`;
-        try {
-          response = await fetch(url, { method: 'GET' });
-        } catch (fetchErr) {
-          throw new Error('Gagal mengakses link. Pastikan akses Share Google Sheet disetel "Anyone with the link".');
-        }
-
-        if (!response.ok) {
-          throw new Error(`Sheet tidak ditemukan (Kode ${response.status}). Pastikan ID atau Link Spreadsheet valid dan tidak dikunci.`);
-        }
-      }
-      
-      const csvData = await response.text();
-      // If it returns HTML instead of CSV, it usually means it's restricted/private
-      if (csvData.trim().startsWith('<!DOCTYPE html>') || csvData.trim().startsWith('<html')) {
-        throw new Error('Akses ditolak. Pastikan akses Sheet disetel ke "Siapa saja yang memiliki link" (Share > Anyone with the link)');
-      }
-
-      const workbook = XLSX.read(csvData, { type: 'string' });
-      const firstSheetName = workbook.SheetNames[0];
-      const data = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheetName]);
-      
-      return data;
-    } catch (error: any) {
-      console.error('Error syncing with Google Sheets:', error);
-      throw new Error(error.message || 'Gagal mengambil data dari Google Sheets. Pastikan ID valid dan akses terbuka.');
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, COL_PTSL);
     }
   },
 
-  getRows: (): PTSLData[] => {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
-  },
-
-  saveRow: (row: PTSLData) => {
-    const rows = dbService.getRows();
-    const newRow = { 
-      ...row, 
-      id: row.id || crypto.randomUUID(),
-      createdAt: row.createdAt || new Date().toISOString()
-    };
-    
-    if (row.id) {
-      const index = rows.findIndex(r => r.id === row.id);
-      if (index !== -1) {
-        rows[index] = newRow;
-      } else {
-        rows.push(newRow);
-      }
-    } else {
-      // Check for duplicates by NIB or NIK if it's a new entry
-      const existingIndex = rows.findIndex(r => 
-        (row.nib && r.nib === row.nib) || (row.noKtp && r.noKtp === row.noKtp)
-      );
-      
-      if (existingIndex !== -1) {
-        // If found, update the existing one (Overwrite old with new)
-        rows[existingIndex] = { ...newRow, id: rows[existingIndex].id };
-      } else {
-        rows.push(newRow);
-      }
-    }
-    
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
-    return newRow;
-  },
-
-  // Reference Database Methods
-  saveRefWarga: async (data: any[]) => {
+  deleteRow: async (id: string) => {
     try {
-      // Optimize storage: only keep columns we actually use in the form lookup
-      const keysToKeep = ['id', 'NIK', 'NAMA', 'TEMPAT LAHIR', 'TANGGAL LAHIR', 'ALAMAT', 'RT/RW', 'KEL/DESA', 'KECAMATAN', 'PEKERJAAN', 'NO HP', 'noKtp', 'nama', 'tempatLahir', 'tanggalLahir', 'alamat', 'rtRw', 'kelDesa', 'kecamatan', 'pekerjaan', 'noHp'];
-      const optimizedData = data.map(row => {
-        const newRow: any = { id: row.id || crypto.randomUUID() };
-        keysToKeep.forEach(key => {
-          if (row[key] !== undefined && key !== 'id') newRow[key] = row[key];
-        });
-        return newRow;
-      });
-      await localforage.setItem(REF_WARGA_KEY, optimizedData);
-      localStorage.removeItem(REF_WARGA_KEY); // Clean up old data from localStorage
-    } catch (e: any) {
-      throw new Error(e.message || 'Gagal menyimpan data ke IndexedDB');
+      await deleteDoc(doc(db, COL_PTSL, id));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, COL_PTSL);
     }
   },
 
   getRefWarga: async (): Promise<any[]> => {
     try {
-      const localData: any[] | null = await localforage.getItem(REF_WARGA_KEY);
-      if (localData !== null && localData.length > 0) {
-        // Ensure legacy entries have IDs
-        return localData.map(d => ({...d, id: d.id || crypto.randomUUID()}));
-      }
-      
-      // Map Master Data to the expected lookup format
-      const mappedMaster = MASTER_WARGA_DATA.map(v => ({
-        id: crypto.randomUUID(),
-        NIK: v.NIK,
-        NAMA: v.NAMA,
-        'TEMPAT LAHIR': v.TEMPAT_LAHIR,
-        'TANGGAL LAHIR': v.TANGGAL_LAHIR,
-        ALAMAT: v.ALAMAT,
-        'RT/RW': v.RT_RW,
-        'KEL/DESA': v.KEL_DESA,
-        KECAMATAN: v.KECAMATAN,
-        PEKERJAAN: v.PEKERJAAN,
-        'NO HP': v.NO_HP
-      }));
-
-      await localforage.setItem(REF_WARGA_KEY, mappedMaster);
-      return mappedMaster;
+      const snapshot = await getDocs(collection(db, COL_WARGA));
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (e) {
+      handleFirestoreError(e, OperationType.GET, COL_WARGA);
       return [];
-    }
-  },
-
-  saveRefSppt: async (data: any[]) => {
-    try {
-      // Optimize storage for SPPT
-      const keysToKeep = ['id', 'NOP', 'NAMA WAJIB PAJAK', 'LUAS SPPT', 'NJOP PERMETER', 'DUSUN', 'BLOK', 'RT', 'RW', 'DESA', 'KECAMATAN', 'nopSppt', 'namaWajibPajak', 'luasSppt', 'njopPermeter', 'dusunJalanGang', 'desa', 'kecamatanLokasi'];
-      const optimizedData = data.map(row => {
-        const newRow: any = { id: row.id || crypto.randomUUID() };
-        keysToKeep.forEach(key => {
-          if (row[key] !== undefined && key !== 'id') newRow[key] = row[key];
-        });
-        return newRow;
-      });
-      await localforage.setItem(REF_SPPT_KEY, optimizedData);
-      localStorage.removeItem(REF_SPPT_KEY); // Clean up old data from localStorage
-    } catch (e: any) {
-      throw new Error(e.message || 'Gagal menyimpan data SPPT ke IndexedDB');
     }
   },
 
   getRefSppt: async (): Promise<any[]> => {
     try {
-      const data: any[] | null = await localforage.getItem(REF_SPPT_KEY);
-      if (data !== null) return data.map(d => ({...d, id: d.id || crypto.randomUUID()}));
-      return [];
+      const snapshot = await getDocs(collection(db, COL_SPPT));
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (e) {
+      handleFirestoreError(e, OperationType.GET, COL_SPPT);
       return [];
     }
   },
-  
-  clearRefData: async (type: 'WARGA' | 'SPPT') => {
-    if (type === 'WARGA') {
-      await localforage.removeItem(REF_WARGA_KEY);
-      localStorage.removeItem(REF_WARGA_KEY);
-    } else {
-      await localforage.removeItem(REF_SPPT_KEY);
-      localStorage.removeItem(REF_SPPT_KEY);
+
+  saveRefWarga: async (dataList: any[]) => {
+    try {
+      for (const row of dataList) {
+        if (row.id) {
+          await setDoc(doc(db, COL_WARGA, row.id), row);
+        } else {
+          const docRef = doc(collection(db, COL_WARGA));
+          row.id = docRef.id;
+          await setDoc(docRef, row);
+        }
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, COL_WARGA);
+    }
+  },
+
+  saveRefSppt: async (dataList: any[]) => {
+    try {
+      for (const row of dataList) {
+        if (row.id) {
+          await setDoc(doc(db, COL_SPPT, row.id), row);
+        } else {
+          const docRef = doc(collection(db, COL_SPPT));
+          row.id = docRef.id;
+          await setDoc(docRef, row);
+        }
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, COL_SPPT);
     }
   },
   
-  deleteRow: (id: string) => {
-    const rows = dbService.getRows();
-    const filtered = rows.filter(r => r.id !== id);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+  deleteRefWarga: async (id: string) => {
+    try {
+      await deleteDoc(doc(db, COL_WARGA, id));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, COL_WARGA);
+    }
   },
   
+  deleteRefSppt: async (id: string) => {
+    try {
+      await deleteDoc(doc(db, COL_SPPT, id));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, COL_SPPT);
+    }
+  },
+
+  updateUserRole: async (userId: string, role: string) => {
+    try {
+       await updateDoc(doc(db, COL_USERS, userId), { role });
+    } catch (e) {
+       handleFirestoreError(e, OperationType.UPDATE, COL_USERS);
+    }
+  },
+  
+  deleteUser: async (userId: string) => {
+    try {
+       await deleteDoc(doc(db, COL_USERS, userId));
+    } catch (e) {
+       handleFirestoreError(e, OperationType.DELETE, COL_USERS);
+    }
+  },
+
+  // --- EXPORT / IMPORT SUPPORT ---
   exportToExcel: (data: PTSLData[]) => {
     // Format headers for readable Excel according to the form
     const EXCEL_MAPPING = [
@@ -496,3 +439,4 @@ export const dbService = {
     XLSX.writeFile(wb, filename);
   }
 };
+

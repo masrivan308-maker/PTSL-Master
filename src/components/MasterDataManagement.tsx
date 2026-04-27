@@ -17,18 +17,14 @@ export const MasterDataManagement: React.FC = () => {
   const [formData, setFormData] = useState<any>({});
 
   useEffect(() => {
-    loadData();
-  }, [activeTab]);
-
-  const loadData = async () => {
-    if (activeTab === 'WARGA') {
-      const data = await dbService.getRefWarga();
-      setWargaData(data);
-    } else {
-      const data = await dbService.getRefSppt();
-      setSpptData(data);
-    }
-  };
+    const unsubWarga = dbService.listenWarga((data) => setWargaData(data));
+    const unsubSppt = dbService.listenSppt((data) => setSpptData(data));
+    
+    return () => {
+      unsubWarga();
+      unsubSppt();
+    };
+  }, []);
 
   const handleOpenModal = (record: any = null) => {
     if (record) {
@@ -57,28 +53,13 @@ export const MasterDataManagement: React.FC = () => {
     e.preventDefault();
     try {
       if (activeTab === 'WARGA') {
-        let newData = [...wargaData];
-        if (editingRecord) {
-          const index = newData.findIndex(r => r.id === editingRecord.id);
-          if (index !== -1) newData[index] = { ...formData };
-        } else {
-          newData.unshift({ ...formData, id: crypto.randomUUID() });
-        }
-        await dbService.saveRefWarga(newData);
-        setWargaData(newData);
+        const payload = editingRecord ? { ...editingRecord, ...formData } : { ...formData };
+        await dbService.saveRefWarga([payload]);
       } else {
-        let newData = [...spptData];
-        if (editingRecord) {
-          const index = newData.findIndex(r => r.id === editingRecord.id);
-          if (index !== -1) newData[index] = { ...formData };
-        } else {
-          newData.unshift({ ...formData, id: crypto.randomUUID() });
-        }
-        await dbService.saveRefSppt(newData);
-        setSpptData(newData);
+         const payload = editingRecord ? { ...editingRecord, ...formData } : { ...formData };
+         await dbService.saveRefSppt([payload]);
       }
       setShowModal(false);
-      alert('Data berhasil disimpan');
     } catch (err: any) {
       alert('Gagal menyimpan: ' + err.message);
     }
@@ -88,13 +69,9 @@ export const MasterDataManagement: React.FC = () => {
     if (!confirm('Hapus data referensi ini secara permanen?')) return;
     try {
       if (activeTab === 'WARGA') {
-        const newData = wargaData.filter(r => r.id !== id);
-        await dbService.saveRefWarga(newData);
-        setWargaData(newData);
+        await dbService.deleteRefWarga(id);
       } else {
-        const newData = spptData.filter(r => r.id !== id);
-        await dbService.saveRefSppt(newData);
-        setSpptData(newData);
+        await dbService.deleteRefSppt(id);
       }
     } catch (err: any) {
       alert('Gagal menghapus: ' + err.message);
@@ -106,6 +83,7 @@ export const MasterDataManagement: React.FC = () => {
     .filter(r => {
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
+      // Only check up to a limit or we can just use normal filter
       return Object.values(r).some(val => String(val).toLowerCase().includes(q));
     })
     .slice(0, 50); // limit display to 50 for performance

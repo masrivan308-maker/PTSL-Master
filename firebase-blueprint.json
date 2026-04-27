@@ -1,0 +1,72 @@
+{
+  "entities": {
+    "PTSLData": {
+      "title": "PTSL Data",
+      "description": "Data record for PTSL",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "nib": { "type": "string", "description": "NIB" },
+        "luas": { "type": "string" },
+        "noKtp": { "type": "string" },
+        "nama": { "type": "string" },
+        "operator": { "type": "string" },
+        "userId": { "type": "string" },
+        "nopSppt": { "type": "string" },
+        "namaSaksi1": { "type": "string" },
+        "namaSaksi2": { "type": "string" }
+      }
+    },
+    "User": {
+      "title": "User",
+      "description": "User profile and role",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "operator"] },
+        "displayName": { "type": "string" }
+      }
+    },
+    "Warga": {
+      "title": "Warga",
+      "description": "Master data warga",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "NIK": { "type": "string" },
+        "NAMA": { "type": "string" },
+        "ALAMAT": { "type": "string" }
+      }
+    },
+    "SPPT": {
+      "title": "SPPT",
+      "description": "Master data SPPT",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "NOP": { "type": "string" },
+        "NAMA WAJIB PAJAK": { "type": "string" },
+        "LUAS SPPT": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/ptsl_data/{docId}": {
+      "schema": { "$ref": "#/entities/PTSLData" },
+      "description": "Main PTSL documents"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles with roles"
+    },
+    "/master_warga/{docId}": {
+      "schema": { "$ref": "#/entities/Warga" },
+      "description": "Reference data for warga"
+    },
+    "/master_sppt/{docId}": {
+      "schema": { "$ref": "#/entities/SPPT" },
+      "description": "Reference data for SPPT"
+    }
+  }
+}
