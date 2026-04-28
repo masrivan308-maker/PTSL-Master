@@ -4,16 +4,19 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port=3000 --host=0.0.0.0",
-    "build": "vite build",
-    "preview": "vite preview",
-    "clean": "rm -rf dist",
+    "dev": "tsx server.ts",
+    "start": "NODE_ENV=production node dist-server/server.cjs",
+    "build:server": "esbuild server.ts --platform=node --bundle --format=cjs --outfile=dist-server/server.cjs",
+    "build": "vite build && npm run build:server",
+    "preview": "npm run start",
+    "clean": "rm -rf dist dist-server",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
     "@hookform/resolvers": "^5.2.2",
     "@tailwindcss/vite": "^4.1.14",
+    "@types/papaparse": "^5.5.2",
     "@vitejs/plugin-react": "^5.0.4",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
@@ -23,6 +26,7 @@
     "localforage": "^1.10.0",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
+    "papaparse": "^5.5.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.73.1",
@@ -32,9 +36,10 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
+    "@types/express": "^4.17.25",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
+    "esbuild": "^0.28.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
