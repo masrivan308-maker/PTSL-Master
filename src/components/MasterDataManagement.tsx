@@ -15,6 +15,9 @@ export const MasterDataManagement: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [wargaUrl, setWargaUrl] = useState('');
+  const [spptUrl, setSpptUrl] = useState('');
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -62,7 +65,15 @@ export const MasterDataManagement: React.FC = () => {
   const handleReloadCache = async () => {
     setIsLoading(true);
     try {
-       const res = await fetch('/api/master/reload');
+       const reloadPayload: any = {};
+       if (wargaUrl.trim()) reloadPayload.wargaUrl = wargaUrl.trim();
+       if (spptUrl.trim()) reloadPayload.spptUrl = spptUrl.trim();
+
+       const res = await fetch('/api/master/reload', {
+           method: Object.keys(reloadPayload).length > 0 ? 'POST' : 'GET',
+           headers: { 'Content-Type': 'application/json' },
+           body: Object.keys(reloadPayload).length > 0 ? JSON.stringify(reloadPayload) : undefined
+       });
        const contentType = res.headers.get("content-type");
        if (contentType && contentType.indexOf("application/json") !== -1) {
            const data = await res.json();
@@ -75,6 +86,7 @@ export const MasterDataManagement: React.FC = () => {
              alert("Sinkronisasi gagal memuat data dari Google Sheet: " + data.message);
            } else {
              alert("Sinkronisasi server dengan Google Sheets selesai.");
+             setShowSettings(false);
            }
            fetchData();
        } else {
@@ -99,15 +111,70 @@ export const MasterDataManagement: React.FC = () => {
         </div>
         <div className="flex gap-3">
           <button 
+            onClick={() => setShowSettings(!showSettings)}
+            className={`px-4 py-2 rounded-lg flex items-center gap-2 font-bold transition-colors ${showSettings ? 'border border-indigo-200 bg-indigo-50 text-indigo-700' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}
+          >
+            Pengaturan Link URL
+          </button>
+          <button 
             onClick={handleReloadCache}
             disabled={isLoading}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg flex items-center gap-2 font-bold hover:bg-indigo-700 transition disabled:opacity-50"
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg flex items-center gap-2 font-bold hover:bg-indigo-700 transition disabled:opacity-50 shadow-sm"
           >
             <RefreshCw size={18} className={isLoading ? "animate-spin" : ""} />
-            Sinkronisasi dengan Google Sheets
+            Sinkronisasi
           </button>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden mb-6"
+          >
+            <div className="bg-indigo-50/50 border border-indigo-100 p-6 rounded-xl space-y-4">
+              <h3 className="font-bold text-indigo-900 flex items-center gap-2"><Database size={18}/> Custom Link Google Sheets</h3>
+              <p className="text-sm text-indigo-700/80 mb-4 max-w-4xl">Masukkan link CSV dari Google Sheets yang telah dipublikasikan <span className="font-mono bg-white px-1.5 py-0.5 rounded text-xs select-auto">File &gt; Share &gt; Publish to web &gt; CSV</span>. Kosongkan untuk menggunakan URL bawaan (default).</p>
+              
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-widest pl-1">Link CSV Data Warga</label>
+                  <input 
+                    type="text" 
+                    value={wargaUrl}
+                    onChange={e => setWargaUrl(e.target.value)}
+                    placeholder="https://docs.google.com/spreadsheets/.../pub?output=csv"
+                    className="w-full text-sm font-mono border border-slate-200 rounded-lg px-4 py-2 bg-white outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-widest pl-1">Link CSV Data SPPT</label>
+                  <input 
+                    type="text" 
+                    value={spptUrl}
+                    onChange={e => setSpptUrl(e.target.value)}
+                    placeholder="https://docs.google.com/spreadsheets/.../pub?output=csv"
+                    className="w-full text-sm font-mono border border-slate-200 rounded-lg px-4 py-2 bg-white outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex justify-end pt-2">
+                <button 
+                  onClick={handleReloadCache}
+                  disabled={isLoading || (!wargaUrl && !spptUrl)}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg flex items-center gap-2 font-bold hover:bg-slate-800 transition disabled:opacity-50"
+                >
+                  <Save size={16} /> Update & Sinkronisasikan Sekarang
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="flex bg-slate-100 p-1 rounded-xl mb-6 w-fit">
         <button 

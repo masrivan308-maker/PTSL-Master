@@ -6,8 +6,8 @@ import Papa from "papaparse";
 const app = express();
 const PORT = 3000;
 
-const WARGA_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8Gp1RSibavtsg7wHxzSfBJpDJVAsOgKyIPESPtfBPUAdMFP8yAQBj94lxMs9iDL1s3QECp_i9xbha/pub?output=csv";
-const SPPT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQMz-UaCHwGuA8SSP2E3zN239h6kKBrxRl0RiP55Fs1NyjHWo3G6PjzduYuyhdvfDK_jVGVgzyIHPVA/pub?output=csv";
+let WARGA_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8Gp1RSibavtsg7wHxzSfBJpDJVAsOgKyIPESPtfBPUAdMFP8yAQBj94lxMs9iDL1s3QECp_i9xbha/pub?output=csv";
+let SPPT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQMz-UaCHwGuA8SSP2E3zN239h6kKBrxRl0RiP55Fs1NyjHWo3G6PjzduYuyhdvfDK_jVGVgzyIHPVA/pub?output=csv";
 
 let wargaData: any[] = [];
 let spptData: any[] = [];
@@ -45,6 +45,8 @@ async function loadData() {
 
 // Start async loading
 loadData();
+
+app.use(express.json());
 
 // API routes FIRST
 app.get("/api/health", (req, res) => {
@@ -115,10 +117,17 @@ app.get("/api/master/sppt", (req, res) => {
 });
 
 // Force reload data endpoint for admin
-app.get("/api/master/reload", async (req, res) => {
+app.post("/api/master/reload", async (req, res) => {
   if (isReloading) {
     return res.json({ status: "loading", message: "Data is already being synchronized" });
   }
+
+  const newWargaUrl = req.body?.wargaUrl || req.query?.wargaUrl;
+  const newSpptUrl = req.body?.spptUrl || req.query?.spptUrl;
+
+  if (newWargaUrl && typeof newWargaUrl === "string") WARGA_CSV_URL = newWargaUrl;
+  if (newSpptUrl && typeof newSpptUrl === "string") SPPT_CSV_URL = newSpptUrl;
+
   const result = await loadData();
   if (result?.success) {
     res.json({ status: "ok", message: "Data reloaded successfully" });
