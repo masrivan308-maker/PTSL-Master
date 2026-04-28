@@ -17,6 +17,7 @@ export const MasterDataManagement: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string>('');
 
   const fileInputWargaRef = useRef<HTMLInputElement>(null);
   const fileInputSpptRef = useRef<HTMLInputElement>(null);
@@ -94,11 +95,18 @@ export const MasterDataManagement: React.FC = () => {
 
       const endpoint = type === 'WARGA' ? '/api/master/warga/upload' : '/api/master/sppt/upload';
       
-      // Upload in chunks of 5000 to prevent payload too large errors
-      const chunkSize = 5000;
+      // Upload in smaller chunks to prevent proxy payload limit errors
+      const chunkSize = 500;
       let result;
       for (let i = 0; i < parsedData.length; i += chunkSize) {
         const chunk = parsedData.slice(i, i + chunkSize);
+        
+        // Optionally update some progress state here if needed
+        const currentChunk = i / chunkSize + 1;
+        const totalChunks = Math.ceil(parsedData.length / chunkSize);
+        console.log(`Uploading chunk ${currentChunk} of ${totalChunks}...`);
+        setUploadProgress(`Mengunggah data... (${Math.min(i + chunkSize, parsedData.length)} / ${parsedData.length})`);
+        
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: {
@@ -129,6 +137,7 @@ export const MasterDataManagement: React.FC = () => {
       alert('Gagal memproses file: ' + e.message);
     } finally {
       setIsLoading(false);
+      setUploadProgress('');
       if (event.target) event.target.value = '';
     }
   };
@@ -173,6 +182,7 @@ export const MasterDataManagement: React.FC = () => {
           </button>
         </div>
       </div>
+{uploadProgress && <div className="bg-indigo-50 text-indigo-700 p-3 rounded-lg flex items-center gap-3 font-semibold mb-6 animate-pulse"><RefreshCw size={20} className="animate-spin" /> {uploadProgress}</div>}
 
       <div className="flex bg-slate-100 p-1 rounded-xl mb-6 w-fit">
         <button 
