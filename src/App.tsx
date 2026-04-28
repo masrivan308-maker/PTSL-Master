@@ -144,6 +144,14 @@ export default function App() {
             Export Laporan
           </button>
 
+          <button 
+            onClick={() => setView('master')}
+            className={`w-full p-3 rounded-xl flex items-center gap-3 font-semibold transition-colors ${view === 'master' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            <Database size={20} />
+            Data Master (Referensi)
+          </button>
+
           {user?.role === 'admin' && (
             <>
               <button 
@@ -152,13 +160,6 @@ export default function App() {
               >
                 <Users size={20} />
                 Manajemen Pengguna
-              </button>
-              <button 
-                onClick={() => setView('master')}
-                className={`w-full p-3 rounded-xl flex items-center gap-3 font-semibold transition-colors ${view === 'master' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'}`}
-              >
-                <Database size={20} />
-                Data Master (Referensi)
               </button>
             </>
           )}
@@ -217,7 +218,7 @@ export default function App() {
             </div>
           ) : view === 'users' && user?.role === 'admin' ? (
             <UserManagement />
-          ) : view === 'master' && user?.role === 'admin' ? (
+          ) : view === 'master' ? (
             <MasterDataManagement />
           ) : view === 'form' ? (
             <div className="max-w-6xl mx-auto p-8">

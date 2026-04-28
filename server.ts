@@ -41,10 +41,11 @@ loadData();
 
 // API routes FIRST
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok" });
+  res.json({ status: "hello-world-123" });
 });
 
 app.get("/api/master/warga", (req, res) => {
+  console.log("RECEIVED REQUEST FOR /api/master/warga", req.url);
   if (!isDataLoaded) {
     return res.status(503).json({ error: "Data is still loading. Please try again in a few seconds." });
   }
