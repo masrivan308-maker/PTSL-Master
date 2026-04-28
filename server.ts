@@ -12,8 +12,11 @@ const SPPT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQMz-UaCHw
 let wargaData: any[] = [];
 let spptData: any[] = [];
 let isDataLoaded = false;
+let isReloading = false;
 
 async function loadData() {
+  if (isReloading) return;
+  isReloading = true;
   try {
     console.log("Loading data from Google Sheets...");
     const [wargaRes, spptRes] = await Promise.all([
@@ -33,6 +36,8 @@ async function loadData() {
     console.log(`Loaded ${wargaData.length} Warga records and ${spptData.length} SPPT records.`);
   } catch (error) {
     console.error("Error loading CSV data:", error);
+  } finally {
+    isReloading = false;
   }
 }
 
@@ -109,7 +114,9 @@ app.get("/api/master/sppt", (req, res) => {
 
 // Force reload data endpoint for admin
 app.post("/api/master/reload", async (req, res) => {
-  isDataLoaded = false;
+  if (isReloading) {
+    return res.json({ status: "loading", message: "Data is already being synchronized" });
+  }
   await loadData();
   res.json({ status: "ok", message: "Data reloaded successfully" });
 });

@@ -62,9 +62,14 @@ export const MasterDataManagement: React.FC = () => {
   const handleReloadCache = async () => {
     setIsLoading(true);
     try {
-       await fetch('/api/master/reload', { method: 'POST' });
-       alert("Proses sinkronisasi data dengan Google Sheets di server telah dimulai.");
-       setTimeout(fetchData, 2000);
+       const res = await fetch('/api/master/reload', { method: 'POST' });
+       const data = await res.json();
+       if (data.status === 'loading') {
+         alert("Data sedang dalam proses sinkronisasi oleh pengguna lain. Silakan tunggu sebentar.");
+       } else {
+         alert("Sinkronisasi server dengan Google Sheets selesai.");
+       }
+       fetchData();
     } catch (e) {
        console.error(e);
        alert("Gagal sinkronisasi data dengan server.");
