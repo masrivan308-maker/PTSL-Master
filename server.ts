@@ -34,8 +34,10 @@ async function loadData() {
     spptData = spptParsed.data;
     isDataLoaded = true;
     console.log(`Loaded ${wargaData.length} Warga records and ${spptData.length} SPPT records.`);
-  } catch (error) {
+    return { success: true };
+  } catch (error: any) {
     console.error("Error loading CSV data:", error);
+    return { success: false, message: error.message };
   } finally {
     isReloading = false;
   }
@@ -113,12 +115,16 @@ app.get("/api/master/sppt", (req, res) => {
 });
 
 // Force reload data endpoint for admin
-app.post("/api/master/reload", async (req, res) => {
+app.get("/api/master/reload", async (req, res) => {
   if (isReloading) {
     return res.json({ status: "loading", message: "Data is already being synchronized" });
   }
-  await loadData();
-  res.json({ status: "ok", message: "Data reloaded successfully" });
+  const result = await loadData();
+  if (result?.success) {
+    res.json({ status: "ok", message: "Data reloaded successfully" });
+  } else {
+    res.status(500).json({ status: "error", message: result?.message || "Unknown error" });
+  }
 });
 
 async function startServer() {

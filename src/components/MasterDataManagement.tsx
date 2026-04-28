@@ -62,20 +62,29 @@ export const MasterDataManagement: React.FC = () => {
   const handleReloadCache = async () => {
     setIsLoading(true);
     try {
-       const res = await fetch('/api/master/reload', { method: 'POST' });
-       if (!res.ok) {
-           throw new Error(`HTTP error! status: ${res.status}`);
-       }
-       const data = await res.json();
-       if (data.status === 'loading') {
-         alert("Data sedang dalam proses sinkronisasi oleh pengguna lain. Silakan tunggu sebentar.");
+       const res = await fetch('/api/master/reload');
+       const contentType = res.headers.get("content-type");
+       if (contentType && contentType.indexOf("application/json") !== -1) {
+           const data = await res.json();
+           if (!res.ok) {
+               throw new Error(data.message || `HTTP error! status: ${res.status}`);
+           }
+           if (data.status === 'loading') {
+             alert("Data sedang dalam proses sinkronisasi oleh pengguna lain. Silakan tunggu sebentar.");
+           } else if (data.status === 'error') {
+             alert("Sinkronisasi gagal memuat data dari Google Sheet: " + data.message);
+           } else {
+             alert("Sinkronisasi server dengan Google Sheets selesai.");
+           }
+           fetchData();
        } else {
-         alert("Sinkronisasi server dengan Google Sheets selesai.");
+           const textData = await res.text();
+           console.error("Received non-JSON response:", textData.substring(0, 100));
+           throw new Error("Server mengembalikan respons yang tidak valid (bukan JSON).");
        }
-       fetchData();
-    } catch (e) {
+    } catch (e: any) {
        console.error("Reload cache error:", e);
-       alert("Gagal sinkronisasi data dengan server. Pastikan Anda tidak sedang dalam mode 'Preview' statis.");
+       alert("Gagal sinkronisasi data: " + e.message);
     } finally {
        setIsLoading(false);
     }
