@@ -72,8 +72,9 @@ export const MasterDataManagement: React.FC = () => {
        const res = await fetch('/api/master/reload', {
            method: 'POST',
            headers: { 'Content-Type': 'application/json' },
-           body: Object.keys(reloadPayload).length > 0 ? JSON.stringify(reloadPayload) : undefined
+           body: JSON.stringify(reloadPayload)
        });
+
        const contentType = res.headers.get("content-type");
        if (contentType && contentType.indexOf("application/json") !== -1) {
            const data = await res.json();
