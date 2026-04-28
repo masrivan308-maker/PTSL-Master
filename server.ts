@@ -15,9 +15,13 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // Upload endpoints
 app.post("/api/master/warga/upload", (req, res) => {
   if (req.body && Array.isArray(req.body.data)) {
-    wargaData = req.body.data;
+    if (req.body.append) {
+      wargaData.push(...req.body.data);
+    } else {
+      wargaData = req.body.data;
+    }
     isDataLoaded = true;
-    console.log(`Uploaded ${wargaData.length} Warga records.`);
+    console.log(`Uploaded ${req.body.data.length} Warga records.`);
     res.json({ status: "ok", message: `Berhasil mengunggah ${wargaData.length} data Warga.` });
   } else {
     res.status(400).json({ status: "error", message: "Invalid data format" });
@@ -26,9 +30,13 @@ app.post("/api/master/warga/upload", (req, res) => {
 
 app.post("/api/master/sppt/upload", (req, res) => {
   if (req.body && Array.isArray(req.body.data)) {
-    spptData = req.body.data;
+    if (req.body.append) {
+      spptData.push(...req.body.data);
+    } else {
+      spptData = req.body.data;
+    }
     isDataLoaded = true;
-    console.log(`Uploaded ${spptData.length} SPPT records.`);
+    console.log(`Uploaded ${req.body.data.length} SPPT records.`);
     res.json({ status: "ok", message: `Berhasil mengunggah ${spptData.length} data SPPT.` });
   } else {
     res.status(400).json({ status: "error", message: "Invalid data format" });

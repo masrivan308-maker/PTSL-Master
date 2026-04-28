@@ -93,18 +93,36 @@ export const MasterDataManagement: React.FC = () => {
       }
 
       const endpoint = type === 'WARGA' ? '/api/master/warga/upload' : '/api/master/sppt/upload';
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ data: parsedData })
-      });
-
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.message || 'Gagal mengunggah data');
       
-      alert(`Berhasil: ${result.message}`);
+      // Upload in chunks of 5000 to prevent payload too large errors
+      const chunkSize = 5000;
+      let result;
+      for (let i = 0; i < parsedData.length; i += chunkSize) {
+        const chunk = parsedData.slice(i, i + chunkSize);
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ data: chunk, append: i > 0 })
+        });
+
+        if (!res.ok) {
+           const errText = await res.text();
+           let errMsg = errText;
+           try {
+             // Try to parse json if possible
+             errMsg = JSON.parse(errText).message || errText;
+           } catch (e) {
+             // If not JSON, probably an HTML proxy error
+             errMsg = `Server error (${res.status}): Payload too large or request timeout.`;
+           }
+           throw new Error(errMsg);
+        }
+        result = await res.json();
+      }
+      
+      alert(`Berhasil: ${result?.message || 'Data berhasil diunggah.'}`);
       fetchData();
     } catch (e: any) {
       console.error(e);
