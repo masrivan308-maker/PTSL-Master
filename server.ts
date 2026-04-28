@@ -1,52 +1,39 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
-import Papa from "papaparse";
 
 const app = express();
 const PORT = 3000;
 
-let WARGA_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS8Gp1RSibavtsg7wHxzSfBJpDJVAsOgKyIPESPtfBPUAdMFP8yAQBj94lxMs9iDL1s3QECp_i9xbha/pub?output=csv";
-let SPPT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQMz-UaCHwGuA8SSP2E3zN239h6kKBrxRl0RiP55Fs1NyjHWo3G6PjzduYuyhdvfDK_jVGVgzyIHPVA/pub?output=csv";
-
 let wargaData: any[] = [];
 let spptData: any[] = [];
-let isDataLoaded = false;
-let isReloading = false;
+let isDataLoaded = true;
 
-async function loadData() {
-  if (isReloading) return;
-  isReloading = true;
-  try {
-    console.log("Loading data from Google Sheets...");
-    const [wargaRes, spptRes] = await Promise.all([
-      fetch(WARGA_CSV_URL),
-      fetch(SPPT_CSV_URL),
-    ]);
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-    const wargaText = await wargaRes.text();
-    const spptText = await spptRes.text();
-
-    const wargaParsed = Papa.parse(wargaText, { header: true, dynamicTyping: true, skipEmptyLines: true });
-    const spptParsed = Papa.parse(spptText, { header: true, dynamicTyping: true, skipEmptyLines: true });
-
-    wargaData = wargaParsed.data;
-    spptData = spptParsed.data;
+// Upload endpoints
+app.post("/api/master/warga/upload", (req, res) => {
+  if (req.body && Array.isArray(req.body.data)) {
+    wargaData = req.body.data;
     isDataLoaded = true;
-    console.log(`Loaded ${wargaData.length} Warga records and ${spptData.length} SPPT records.`);
-    return { success: true };
-  } catch (error: any) {
-    console.error("Error loading CSV data:", error);
-    return { success: false, message: error.message };
-  } finally {
-    isReloading = false;
+    console.log(`Uploaded ${wargaData.length} Warga records.`);
+    res.json({ status: "ok", message: `Berhasil mengunggah ${wargaData.length} data Warga.` });
+  } else {
+    res.status(400).json({ status: "error", message: "Invalid data format" });
   }
-}
+});
 
-// Start async loading
-loadData();
-
-app.use(express.json());
+app.post("/api/master/sppt/upload", (req, res) => {
+  if (req.body && Array.isArray(req.body.data)) {
+    spptData = req.body.data;
+    isDataLoaded = true;
+    console.log(`Uploaded ${spptData.length} SPPT records.`);
+    res.json({ status: "ok", message: `Berhasil mengunggah ${spptData.length} data SPPT.` });
+  } else {
+    res.status(400).json({ status: "error", message: "Invalid data format" });
+  }
+});
 
 // API routes FIRST
 app.get("/api/health", (req, res) => {
@@ -114,26 +101,6 @@ app.get("/api/master/sppt", (req, res) => {
     limit,
     totalPages: Math.ceil(total / limit)
   });
-});
-
-// Force reload data endpoint for admin
-app.post("/api/master/reload", async (req, res) => {
-  if (isReloading) {
-    return res.json({ status: "loading", message: "Data is already being synchronized" });
-  }
-
-  const newWargaUrl = req.body?.wargaUrl || req.query?.wargaUrl;
-  const newSpptUrl = req.body?.spptUrl || req.query?.spptUrl;
-
-  if (newWargaUrl && typeof newWargaUrl === "string") WARGA_CSV_URL = newWargaUrl;
-  if (newSpptUrl && typeof newSpptUrl === "string") SPPT_CSV_URL = newSpptUrl;
-
-  const result = await loadData();
-  if (result?.success) {
-    res.json({ status: "ok", message: "Data reloaded successfully" });
-  } else {
-    res.status(500).json({ status: "error", message: result?.message || "Unknown error" });
-  }
 });
 
 async function startServer() {
