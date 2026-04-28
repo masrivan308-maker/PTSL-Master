@@ -70,7 +70,7 @@ export const MasterDataManagement: React.FC = () => {
        if (spptUrl.trim()) reloadPayload.spptUrl = spptUrl.trim();
 
        const res = await fetch('/api/master/reload', {
-           method: Object.keys(reloadPayload).length > 0 ? 'POST' : 'GET',
+           method: 'POST',
            headers: { 'Content-Type': 'application/json' },
            body: Object.keys(reloadPayload).length > 0 ? JSON.stringify(reloadPayload) : undefined
        });
