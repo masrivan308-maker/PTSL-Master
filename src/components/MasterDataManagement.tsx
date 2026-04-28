@@ -63,6 +63,9 @@ export const MasterDataManagement: React.FC = () => {
     setIsLoading(true);
     try {
        const res = await fetch('/api/master/reload', { method: 'POST' });
+       if (!res.ok) {
+           throw new Error(`HTTP error! status: ${res.status}`);
+       }
        const data = await res.json();
        if (data.status === 'loading') {
          alert("Data sedang dalam proses sinkronisasi oleh pengguna lain. Silakan tunggu sebentar.");
@@ -71,8 +74,8 @@ export const MasterDataManagement: React.FC = () => {
        }
        fetchData();
     } catch (e) {
-       console.error(e);
-       alert("Gagal sinkronisasi data dengan server.");
+       console.error("Reload cache error:", e);
+       alert("Gagal sinkronisasi data dengan server. Pastikan Anda tidak sedang dalam mode 'Preview' statis.");
     } finally {
        setIsLoading(false);
     }

@@ -5,11 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "start": "NODE_ENV=production node dist-server/server.cjs",
-    "build:server": "esbuild server.ts --platform=node --bundle --format=cjs --outfile=dist-server/server.cjs",
-    "build": "vite build && npm run build:server",
+    "start": "node server.ts",
+    "build": "vite build",
     "preview": "npm run start",
-    "clean": "rm -rf dist dist-server",
+    "clean": "rm -rf dist",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
