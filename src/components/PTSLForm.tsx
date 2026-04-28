@@ -14,8 +14,7 @@ interface Props {
 
 const SECTIONS = [
   { id: 'identity', title: 'Identitas Pemohon', icon: <User size={16} />, color: 'indigo' },
-  { id: 'sppt', title: 'Objek Pajak / SPPT', icon: <FileText size={16} />, color: 'orange' },
-  { id: 'location', title: 'Lokasi & Objek', icon: <MapPin size={16} />, color: 'emerald' },
+  { id: 'sppt_location', title: 'Data Objek & Lokasi', icon: <MapPin size={16} />, color: 'emerald' },
   { id: 'history', title: 'Riwayat Tanah', icon: <History size={16} />, color: 'rose' },
   { id: 'boundaries', title: 'Batas & Saksi', icon: <ShieldCheck size={16} />, color: 'amber' },
   { id: 'admin', title: 'Administratif', icon: <Save size={16} />, color: 'slate' },
@@ -322,13 +321,13 @@ export const PTSLForm: React.FC<Props> = ({ initialData, onSave, onCancel }) => 
 
                   {activeSection === 1 && (
                     <>
-                      <div className="col-span-2 grid grid-cols-2 gap-5">
+                      <div className="col-span-2 grid grid-cols-2 gap-5 border-b border-slate-100 pb-4 mb-2">
                         <div className="flex flex-col gap-1 relative">
                           {renderField('nopSppt', 'NOP SPPT')}
                           <button 
                             type="button"
                             onClick={handleLookupSppt}
-                            className="absolute right-2 top-[22px] p-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors z-10"
+                            className="absolute right-2 top-[22px] p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors z-10"
                             title="Cari di Database SPPT"
                           >
                             <Search size={14} />
@@ -338,11 +337,10 @@ export const PTSLForm: React.FC<Props> = ({ initialData, onSave, onCancel }) => 
                       </div>
                       {renderField('luasSppt', 'LUAS SPPT (M2)')}
                       {renderField('njopPermeter', 'NJOP PER METER')}
-                    </>
-                  )}
-
-                  {activeSection === 2 && (
-                    <>
+                      
+                      <div className="col-span-2 border-t border-slate-100 pt-4 mt-2">
+                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-4">Informasi Lokasi Objek</span>
+                      </div>
                       {renderField('dusunJalanGang', 'DUSUN / JALAN / GANG')}
                       {renderField('blok', 'BLOK / TANAH')}
                       <div className="grid grid-cols-2 gap-5">
@@ -354,7 +352,7 @@ export const PTSLForm: React.FC<Props> = ({ initialData, onSave, onCancel }) => 
                     </>
                   )}
 
-                  {activeSection === 3 && (
+                  {activeSection === 2 && (
                     <>
                       {renderField('luasDimohon', 'LUAS DIMOHON')}
                       {renderField('diperolehMelalui', 'DIPEROLEH MELALUI', 'select', ['Jual Beli', 'Waris', 'Hibah', 'Tukar Menukar', 'Pemberian Hak'])}
@@ -407,7 +405,7 @@ export const PTSLForm: React.FC<Props> = ({ initialData, onSave, onCancel }) => 
                     </>
                   )}
 
-                  {activeSection === 4 && (
+                  {activeSection === 3 && (
                     <>
                       <div className="md:col-span-2 border-b border-slate-100 mb-2 pb-2">
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Batas-batas Tanah</span>
@@ -459,7 +457,7 @@ export const PTSLForm: React.FC<Props> = ({ initialData, onSave, onCancel }) => 
                     </>
                   )}
 
-                  {activeSection === 5 && (
+                  {activeSection === 4 && (
                     <>
                       {renderField('namaKades', 'NAMA KEPALA DESA')}
                       {renderField('noAkteTanah', 'NOMOR AKTE TANAH')}

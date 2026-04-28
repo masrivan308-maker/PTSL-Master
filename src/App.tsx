@@ -13,39 +13,63 @@ import { signOut } from 'firebase/auth';
 type View = 'list' | 'form' | 'users' | 'master';
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<string | null>(localStorage.getItem('pts_user'));
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(localStorage.getItem('pts_user_role'));
+  const [user, setUser] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [view, setView] = useState<View>('list');
   const [rows, setRows] = useState<PTSLData[]>([]);
   const [editingRow, setEditingRow] = useState<PTSLData | undefined>();
   const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
-    if (currentUser) {
+    const unsubAuth = auth.onAuthStateChanged(async (firebaseUser) => {
+      if (firebaseUser) {
+        // Fetch role from Firestore
+        try {
+          const { doc, getDoc } = await import('firebase/firestore');
+          const { db } = await import('./firebase');
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          const role = userDoc.exists() ? userDoc.data().role : 'operator';
+          
+          setUser({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName || firebaseUser.email,
+            role: role
+          });
+        } catch (error) {
+          console.error("Error fetching user role:", error);
+          setUser({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName || firebaseUser.email,
+            role: 'operator'
+          });
+        }
+      } else {
+        setUser(null);
+      }
+      setIsLoading(false);
+    });
+
+    return () => unsubAuth();
+  }, []);
+
+  useEffect(() => {
+    if (user) {
       const unsubscribe = dbService.listenPTSL((data) => {
         setRows(data);
       });
       return () => unsubscribe();
     }
-  }, [currentUser]);
-
-  const handleLogin = (user: any) => {
-    setCurrentUser(user.username);
-    setCurrentUserRole(user.role);
-    localStorage.setItem('pts_user', user.username);
-    localStorage.setItem('pts_user_role', user.role);
-  };
+  }, [user]);
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      setUser(null);
     } catch(e) {
       console.error(e);
     }
-    setCurrentUser(null);
-    setCurrentUserRole(null);
-    localStorage.removeItem('pts_user');
-    localStorage.removeItem('pts_user_role');
   };
 
   const handleSave = async (data: PTSLData) => {
@@ -69,8 +93,19 @@ export default function App() {
     dbService.exportToExcel(rows);
   };
 
-  if (!currentUser) {
-    return <Login onLogin={handleLogin} />;
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4">
+          <RefreshCw className="animate-spin text-indigo-600" size={48} />
+          <p className="text-slate-500 font-medium">Memuat data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login onLogin={() => {}} />;
   }
 
   return (
@@ -81,7 +116,7 @@ export default function App() {
             <LayoutDashboard className="text-white" size={24} />
           </div>
           <h1 className="text-xl font-bold tracking-tight text-slate-800">Sistem PTSL</h1>
-          <p className="text-[11px] text-slate-500 font-medium uppercase tracking-widest mt-2">{currentUserRole === 'admin' ? 'Administrator' : 'Operator'}</p>
+          <p className="text-[11px] text-slate-500 font-medium uppercase tracking-widest mt-2">{user?.role === 'admin' ? 'Administrator' : 'Operator'}</p>
         </div>
         
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
@@ -109,7 +144,7 @@ export default function App() {
             Export Laporan
           </button>
 
-          {currentUserRole === 'admin' && (
+          {user?.role === 'admin' && (
             <>
               <button 
                 onClick={() => setView('users')}
@@ -135,8 +170,8 @@ export default function App() {
                <User size={18} />
             </div>
             <div className="flex flex-col min-w-0">
-               <span className="text-xs font-bold text-slate-800 truncate">{currentUser}</span>
-               <span className="text-[9px] text-slate-400 font-bold uppercase">{currentUserRole === 'admin' ? 'Administrator' : 'Operator'}</span>
+               <span className="text-xs font-bold text-slate-800 truncate">{user?.displayName}</span>
+               <span className="text-[9px] text-slate-400 font-bold uppercase">{user?.role === 'admin' ? 'Administrator' : 'Operator'}</span>
             </div>
           </div>
           
@@ -180,9 +215,9 @@ export default function App() {
                 onExport={handleExport}
               />
             </div>
-          ) : view === 'users' && currentUserRole === 'admin' ? (
+          ) : view === 'users' && user?.role === 'admin' ? (
             <UserManagement />
-          ) : view === 'master' && currentUserRole === 'admin' ? (
+          ) : view === 'master' && user?.role === 'admin' ? (
             <MasterDataManagement />
           ) : view === 'form' ? (
             <div className="max-w-6xl mx-auto p-8">

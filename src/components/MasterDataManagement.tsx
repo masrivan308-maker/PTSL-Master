@@ -19,6 +19,31 @@ export const MasterDataManagement: React.FC = () => {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+
+  const handleDeleteAll = async () => {
+    const confirmMessage = `PERINGATAN: Anda akan menghapus SEMUA data ${activeTab}. Tindakan ini tidak dapat dibatalkan.\n\nKetik "HAPUS" untuk mengkonfirmasi:`;
+    const input = prompt(confirmMessage);
+    
+    if (input !== 'HAPUS') {
+      if (input !== null) alert('Konfirmasi salah. Penghapusan dibatalkan.');
+      return;
+    }
+
+    setIsDeletingAll(true);
+    try {
+      if (activeTab === 'WARGA') {
+        await dbService.deleteAllRefWarga();
+      } else {
+        await dbService.deleteAllRefSppt();
+      }
+      alert(`Berhasil menghapus semua data ${activeTab}.`);
+    } catch (err: any) {
+      alert('Gagal menghapus semua data: ' + err.message);
+    } finally {
+      setIsDeletingAll(false);
+    }
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -135,8 +160,7 @@ export const MasterDataManagement: React.FC = () => {
       const q = searchQuery.toLowerCase();
       // Only check up to a limit or we can just use normal filter
       return Object.values(r).some(val => String(val).toLowerCase().includes(q));
-    })
-    .slice(0, 50); // limit display to 50 for performance
+    }); // Display all data as requested
 
   return (
     <div className="p-8">
@@ -168,6 +192,15 @@ export const MasterDataManagement: React.FC = () => {
             <PlusCircle size={18} />
             Tambah Data {activeTab === 'WARGA' ? 'Warga' : 'SPPT'}
           </button>
+          <button 
+            onClick={handleDeleteAll}
+            disabled={isDeletingAll || currentData.length === 0}
+            className="px-4 py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg flex items-center gap-2 font-bold hover:bg-rose-100 transition disabled:opacity-50"
+            title="Hapus Semua Data"
+          >
+            <Trash2 size={18} />
+            {isDeletingAll ? 'Menghapus...' : 'Kosongkan'}
+          </button>
         </div>
       </div>
 
@@ -198,7 +231,9 @@ export const MasterDataManagement: React.FC = () => {
               className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
             />
           </div>
-          <span className="text-xs text-slate-400 font-medium">Menampilkan 50 data teratas</span>
+          <span className="text-xs text-slate-400 font-medium">
+            Menampilkan {filteredData.length} dari {currentData.length} data
+          </span>
         </div>
         
         <div className="overflow-x-auto">
@@ -216,7 +251,10 @@ export const MasterDataManagement: React.FC = () => {
                   <>
                     <th className="p-4 pl-6">NOP</th>
                     <th className="p-4">Nama Wajib Pajak</th>
-                    <th className="p-4">Luas / NJOP</th>
+                    <th className="p-4 text-center">Luas / NJOP</th>
+                    <th className="p-4">Dusun / Blok</th>
+                    <th className="p-4">RT / RW</th>
+                    <th className="p-4">Desa / Kec.</th>
                     <th className="p-4 text-right pr-6">Aksi</th>
                   </>
                 )}
@@ -234,8 +272,22 @@ export const MasterDataManagement: React.FC = () => {
                   ) : (
                     <>
                       <td className="p-4 pl-6 font-mono text-sm text-slate-700">{row['NOP'] || row['nopSppt'] || '-'}</td>
-                      <td className="p-4 font-bold text-slate-800 text-sm">{row['NAMA WAJIB PAJAK'] || row['namaWajibPajak'] || '-'}</td>
-                      <td className="p-4 text-sm text-slate-600">{row['LUAS SPPT'] || row['luasSppt']} m² / Rp. {row['NJOP PERMETER'] || row['njopPermeter']}</td>
+                      <td className="p-4 font-bold text-slate-800 text-sm whitespace-normal min-w-[150px]">{row['NAMA WAJIB PAJAK'] || row['namaWajibPajak'] || '-'}</td>
+                      <td className="p-4 text-sm text-slate-600 text-center">
+                        <div className="font-bold">{row['LUAS SPPT'] || row['luasSppt'] || '-'} m²</div>
+                        <div className="text-[10px] text-slate-400">Rp {row['NJOP PERMETER'] || row['njopPermeter'] || '-'}</div>
+                      </td>
+                      <td className="p-4 text-sm text-slate-600">
+                        <div>{row['DUSUN'] || '-'}</div>
+                        <div className="text-[10px] text-slate-400 font-bold">BLOK: {row['BLOK'] || '-'}</div>
+                      </td>
+                      <td className="p-4 text-sm text-slate-600">
+                        {row['RT'] || '-'}/{row['RW'] || '-'}
+                      </td>
+                      <td className="p-4 text-sm text-slate-600">
+                        <div className="font-medium">{row['DESA'] || '-'}</div>
+                        <div className="text-[10px] text-slate-400">{row['KECAMATAN'] || '-'}</div>
+                      </td>
                     </>
                   )}
                   <td className="p-4 text-right pr-6">
@@ -258,7 +310,7 @@ export const MasterDataManagement: React.FC = () => {
               ))}
               {filteredData.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="p-8 text-center text-slate-500 text-sm">
+                  <td colSpan={activeTab === 'WARGA' ? 4 : 7} className="p-8 text-center text-slate-500 text-sm">
                     {searchQuery ? 'Data tidak ditemukan.' : 'Belum ada data referensi.'}
                   </td>
                 </tr>

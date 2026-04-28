@@ -196,6 +196,48 @@ export const dbService = {
     }
   },
 
+  deleteAllRefWarga: async () => {
+    try {
+      const snapshot = await getDocs(collection(db, COL_WARGA));
+      const chunks = [];
+      const docs = snapshot.docs;
+      const CHUNK_SIZE = 400;
+      
+      for (let i = 0; i < docs.length; i += CHUNK_SIZE) {
+        chunks.push(docs.slice(i, i + CHUNK_SIZE));
+      }
+
+      for (const chunk of chunks) {
+        const batch = writeBatch(db);
+        chunk.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, COL_WARGA);
+    }
+  },
+
+  deleteAllRefSppt: async () => {
+    try {
+      const snapshot = await getDocs(collection(db, COL_SPPT));
+      const chunks = [];
+      const docs = snapshot.docs;
+      const CHUNK_SIZE = 400;
+      
+      for (let i = 0; i < docs.length; i += CHUNK_SIZE) {
+        chunks.push(docs.slice(i, i + CHUNK_SIZE));
+      }
+
+      for (const chunk of chunks) {
+        const batch = writeBatch(db);
+        chunk.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, COL_SPPT);
+    }
+  },
+
   updateUserRole: async (userId: string, role: string) => {
     try {
        await updateDoc(doc(db, COL_USERS, userId), { role });
