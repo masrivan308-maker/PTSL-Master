@@ -33,7 +33,6 @@ export const MasterDataManagement: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, [activeTab, page, limit, debouncedSearch]);
-
   const fetchData = async () => {
     setIsLoading(true);
     try {
@@ -96,7 +95,7 @@ export const MasterDataManagement: React.FC = () => {
       const endpoint = type === 'WARGA' ? '/api/master/warga/upload' : '/api/master/sppt/upload';
       
       // Upload in smaller chunks to prevent proxy payload limit errors
-      const chunkSize = 500;
+      const chunkSize = 50000;
       let result;
       for (let i = 0; i < parsedData.length; i += chunkSize) {
         const chunk = parsedData.slice(i, i + chunkSize);
