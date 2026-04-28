@@ -38,10 +38,11 @@ export const MasterDataManagement: React.FC = () => {
       }
       
       // Clean up headers (assuming first row is headers) and stringify fields if needed
+      // Normalize keys to uppercase to match lookup logic
       const cleanData = json.map((row: any) => {
         const cleanRow: any = {};
         for (const key in row) {
-          const cleanKey = key.trim();
+          const cleanKey = key.trim().toUpperCase();
           cleanRow[cleanKey] = String(row[key]).trim(); // Convert to string
         }
         return cleanRow;

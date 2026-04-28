@@ -130,9 +130,11 @@ export const PTSLForm: React.FC<Props> = ({ initialData, onSave, onCancel }) => 
       return;
     }
     const refData = await dbService.getRefSppt();
-    const found = refData.find(v => 
-      String(v.NOP || v['NOP SPPT'] || v.nopSppt || '').includes(nopValue)
-    );
+    const found = refData.find(v => {
+      const rowNop = String(v.NOP || v['NOP SPPT'] || v.nopSppt || '').trim();
+      const searchNop = nopValue.trim();
+      return rowNop !== '' && (rowNop.includes(searchNop) || searchNop.includes(rowNop));
+    });
 
     if (found) {
       setValue('namaWajibPajak', found['NAMA WAJIB PAJAK'] || found.namaWajibPajak || '');
@@ -140,19 +142,19 @@ export const PTSLForm: React.FC<Props> = ({ initialData, onSave, onCancel }) => 
       setValue('njopPermeter', String(found['NJOP PERMETER'] || found.njopPermeter || '0'));
       
       // Populate Lokasi & Objek (Section 3) fields
-      const dusunVal = found.DUSUN || found.dusun || found['ALAMAT OP'] || found['DUSUN/JALAN'] || found['DUSUN / JALAN'] || '';
-      const blokVal = found.BLOK || found.blok || found['NO BLOK'] || '';
-      const rtVal = found.RT || found.rt || '';
-      const rwVal = found.RW || found.rw || '';
-      const desaVal = found.DESA || found.desa || found['KEL/DESA'] || '';
-      const kecVal = found.KECAMATAN || found.kecamatan || found['KECAMATAN LOKASI'] || '';
+      const dusunVal = found.DUSUN ?? found.dusun ?? found['ALAMAT OP'] ?? found['DUSUN/JALAN'] ?? found['DUSUN / JALAN'] ?? '';
+      const blokVal = found.BLOK ?? found.blok ?? found['NO BLOK'] ?? '';
+      const rtVal = found.RT ?? found.rt ?? '';
+      const rwVal = found.RW ?? found.rw ?? '';
+      const desaVal = found.DESA ?? found.desa ?? found['KEL/DESA'] ?? '';
+      const kecVal = found.KECAMATAN ?? found.kecamatan ?? found['KECAMATAN LOKASI'] ?? '';
 
-      if (dusunVal) setValue('dusunJalanGang', String(dusunVal));
-      if (blokVal) setValue('blok', String(blokVal));
-      if (rtVal) setValue('rt', String(rtVal));
-      if (rwVal) setValue('rw', String(rwVal));
-      if (desaVal) setValue('desa', String(desaVal));
-      if (kecVal) setValue('kecamatanLokasi', String(kecVal));
+      if (dusunVal !== undefined) setValue('dusunJalanGang', String(dusunVal));
+      if (blokVal !== undefined) setValue('blok', String(blokVal));
+      if (rtVal !== undefined) setValue('rt', String(rtVal));
+      if (rwVal !== undefined) setValue('rw', String(rwVal));
+      if (desaVal !== undefined) setValue('desa', String(desaVal));
+      if (kecVal !== undefined) setValue('kecamatanLokasi', String(kecVal));
       
       alert('✅ DATA SPPT DITEMUKAN\nInformasi objek pajak dan lokasi telah diisi otomatis.');
     } else {
