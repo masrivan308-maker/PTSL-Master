@@ -18,9 +18,15 @@ export const MasterDataManagement: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string>('');
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [googleSheetUrl, setGoogleSheetUrl] = useState(() => localStorage.getItem('googleSheetUrl') || '');
 
   const fileInputWargaRef = useRef<HTMLInputElement>(null);
   const fileInputSpptRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    localStorage.setItem('googleSheetUrl', googleSheetUrl);
+  }, [googleSheetUrl]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -33,6 +39,7 @@ export const MasterDataManagement: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, [activeTab, page, limit, debouncedSearch]);
+
   const fetchData = async () => {
     setIsLoading(true);
     try {
@@ -67,16 +74,23 @@ export const MasterDataManagement: React.FC = () => {
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, type: DataSource) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    await processData(file, type);
+    if (event.target) event.target.value = '';
+  };
 
+  const processData = async (source: File | string, type: DataSource) => {
     setIsLoading(true);
+    setUploadProgress('Membaca data...');
     try {
-      const isCsv = file.name.endsWith('.csv');
-      
       let parsedData: any[] = [];
       
-      if (isCsv) {
+      if (typeof source === 'string') {
+        // Fetch from URL
+        const res = await fetch(source);
+        if (!res.ok) throw new Error('Gagal mengambil data dari URL. Pastikan link sudah di-publish ke web sebagai CSV.');
+        const csvText = await res.text();
         parsedData = await new Promise((resolve, reject) => {
-          Papa.parse(file, {
+          Papa.parse(csvText, {
             header: true,
             skipEmptyLines: true,
             dynamicTyping: true,
@@ -85,59 +99,89 @@ export const MasterDataManagement: React.FC = () => {
           });
         });
       } else {
-        const buffer = await file.arrayBuffer();
-        const workbook = XLSX.read(buffer, { type: 'array' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        parsedData = XLSX.utils.sheet_to_json(worksheet);
+        // Handle File
+        const isCsv = source.name.endsWith('.csv');
+        if (isCsv) {
+          parsedData = await new Promise((resolve, reject) => {
+            Papa.parse(source, {
+              header: true,
+              skipEmptyLines: true,
+              dynamicTyping: true,
+              complete: (results) => resolve(results.data),
+              error: (error) => reject(error)
+            });
+          });
+        } else {
+          const buffer = await source.arrayBuffer();
+          const workbook = XLSX.read(buffer, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          parsedData = XLSX.utils.sheet_to_json(worksheet);
+        }
       }
+
+      if (parsedData.length === 0) throw new Error('File kosong atau format tidak sesuai.');
 
       const endpoint = type === 'WARGA' ? '/api/master/warga/upload' : '/api/master/sppt/upload';
       
-      // Upload in smaller chunks to prevent proxy payload limit errors
-      const chunkSize = 200;
+      // Upload in smaller chunks with delay to avoid 413 and timeouts
+      const chunkSize = 500; 
+      const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+      
       let result;
       for (let i = 0; i < parsedData.length; i += chunkSize) {
         const chunk = parsedData.slice(i, i + chunkSize);
-        
-        // Optionally update some progress state here if needed
-        const currentChunk = i / chunkSize + 1;
-        const totalChunks = Math.ceil(parsedData.length / chunkSize);
-        console.log(`Uploading chunk ${currentChunk} of ${totalChunks}...`);
-        setUploadProgress(`Mengunggah data... (${Math.min(i + chunkSize, parsedData.length)} / ${parsedData.length})`);
+        setUploadProgress(`Mengunggah chunk ${Math.floor(i / chunkSize) + 1} / ${Math.ceil(parsedData.length / chunkSize)} (${Math.min(i + chunkSize, parsedData.length)} / ${parsedData.length})`);
         
         const res = await fetch(endpoint, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ data: chunk, append: i > 0 })
         });
 
         if (!res.ok) {
            const errText = await res.text();
-           let errMsg = errText;
+           let errMsg = `Server error (${res.status})`;
            try {
-             // Try to parse json if possible
-             errMsg = JSON.parse(errText).message || errText;
+             errMsg = JSON.parse(errText).message || errMsg;
            } catch (e) {
-             // If not JSON, probably an HTML proxy error
-             errMsg = `Server error (${res.status}): Payload too large or request timeout.`;
+             if (res.status === 413) errMsg = "Payload too large. Chunk size too big.";
            }
            throw new Error(errMsg);
         }
         result = await res.json();
+        
+        // Short delay to let server process
+        if (i + chunkSize < parsedData.length) await delay(100);
       }
       
-      alert(`Berhasil: ${result?.message || 'Data berhasil diunggah.'}`);
+      alert(`Berhasil: ${result?.message || 'Data berhasil disinkronkan.'}`);
       fetchData();
     } catch (e: any) {
       console.error(e);
-      alert('Gagal memproses file: ' + e.message);
+      alert('Gagal memproses data: ' + e.message);
     } finally {
       setIsLoading(false);
       setUploadProgress('');
-      if (event.target) event.target.value = '';
+    }
+  };
+
+  const clearMasterData = async () => {
+    if (!confirm(`Hapus semua data master ${activeTab}?`)) return;
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/master/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: activeTab })
+      });
+      const result = await res.json();
+      alert(result.message);
+      fetchData();
+    } catch (e) {
+      alert('Gagal menghapus data.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -164,6 +208,15 @@ export const MasterDataManagement: React.FC = () => {
             onChange={(e) => handleFileUpload(e, 'SPPT')}
           />
           <button 
+            id="btn-toggle-sync-url"
+            onClick={() => setShowUrlInput(!showUrlInput)}
+            className={`px-4 py-2 ${showUrlInput ? 'bg-amber-100 text-amber-700' : 'bg-white text-slate-700 border border-slate-200'} rounded-lg flex items-center gap-2 font-bold hover:bg-amber-50 transition shadow-sm`}
+          >
+            <RefreshCw size={18} className={showUrlInput ? "text-amber-600" : ""} />
+            Sync URL
+          </button>
+          <button 
+            id="btn-upload-warga"
             onClick={() => fileInputWargaRef.current?.click()}
             disabled={isLoading}
             className="px-4 py-2 bg-indigo-600 text-white rounded-lg flex items-center gap-2 font-bold hover:bg-indigo-700 transition disabled:opacity-50 shadow-sm"
@@ -172,6 +225,7 @@ export const MasterDataManagement: React.FC = () => {
             Upload Warga
           </button>
           <button 
+            id="btn-upload-sppt"
             onClick={() => fileInputSpptRef.current?.click()}
             disabled={isLoading}
             className="px-4 py-2 bg-teal-600 text-white rounded-lg flex items-center gap-2 font-bold hover:bg-teal-700 transition disabled:opacity-50 shadow-sm"
@@ -181,20 +235,66 @@ export const MasterDataManagement: React.FC = () => {
           </button>
         </div>
       </div>
-{uploadProgress && <div className="bg-indigo-50 text-indigo-700 p-3 rounded-lg flex items-center gap-3 font-semibold mb-6 animate-pulse"><RefreshCw size={20} className="animate-spin" /> {uploadProgress}</div>}
 
-      <div className="flex bg-slate-100 p-1 rounded-xl mb-6 w-fit">
+      <AnimatePresence>
+        {showUrlInput && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="mb-6 bg-amber-50 border border-amber-100 p-6 rounded-2xl overflow-hidden"
+          >
+            <h3 className="font-bold text-amber-900 mb-2 flex items-center gap-2"><Database size={18}/> Sinkronisasi Google Sheets</h3>
+            <p className="text-xs text-amber-700/80 mb-4">Masukkan link CSV dari Google Sheets (File &gt; Share &gt; Publish to web &gt; CSV). Link ini akan disimpan secara lokal di browser Anda.</p>
+            <div className="flex gap-3">
+              <input 
+                id="input-google-sheet-url"
+                type="text" 
+                value={googleSheetUrl}
+                onChange={e => setGoogleSheetUrl(e.target.value)}
+                placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv"
+                className="flex-1 px-4 py-2 bg-white border border-amber-200 rounded-lg text-sm font-mono outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
+              />
+              <button 
+                id="btn-sync-now"
+                onClick={() => processData(googleSheetUrl, activeTab)}
+                disabled={!googleSheetUrl || isLoading}
+                className="px-6 py-2 bg-amber-600 text-white rounded-lg font-bold hover:bg-amber-700 transition disabled:opacity-50 flex items-center gap-2"
+              >
+                <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
+                Sync ke {activeTab}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+{uploadProgress && <div id="upload-status-indicator" className="bg-indigo-50 text-indigo-700 p-3 rounded-lg flex items-center gap-3 font-semibold mb-6 animate-pulse"><RefreshCw size={20} className="animate-spin" /> {uploadProgress}</div>}
+
+      <div className="flex justify-between items-end mb-6">
+        <div className="flex bg-slate-100 p-1 rounded-xl w-fit">
+          <button 
+            id="tab-warga"
+            onClick={() => { setActiveTab('WARGA'); setPage(1); setSearchQuery(''); }}
+            className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'WARGA' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            Data Warga
+          </button>
+          <button 
+            id="tab-sppt"
+            onClick={() => { setActiveTab('SPPT'); setPage(1); setSearchQuery(''); }}
+            className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'SPPT' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            Data SPPT
+          </button>
+        </div>
         <button 
-          onClick={() => { setActiveTab('WARGA'); setPage(1); setSearchQuery(''); }}
-          className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'WARGA' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          id="btn-clear-master"
+          onClick={clearMasterData}
+          disabled={isLoading}
+          className="text-xs font-bold text-red-500 hover:text-red-700 flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-red-50 transition"
         >
-          Data Warga
-        </button>
-        <button 
-          onClick={() => { setActiveTab('SPPT'); setPage(1); setSearchQuery(''); }}
-          className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'SPPT' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-        >
-          Data SPPT
+          <Trash2 size={14} /> Kosongkan Data {activeTab}
         </button>
       </div>
 

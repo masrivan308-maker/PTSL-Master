@@ -21,10 +21,9 @@ app.post("/api/master/warga/upload", (req, res) => {
       wargaData = req.body.data;
     }
     isDataLoaded = true;
-    console.log(`Uploaded ${req.body.data.length} Warga records.`);
-    res.json({ status: "ok", message: `Berhasil mengunggah ${wargaData.length} data Warga.` });
+    res.json({ status: "ok", message: `Berhasil mengunggah ${req.body.data.length} data. Total: ${wargaData.length}` });
   } else {
-    res.status(400).json({ status: "error", message: "Invalid data format" });
+    res.status(400).json({ status: "error", message: "Format data tidak valid" });
   }
 });
 
@@ -36,11 +35,21 @@ app.post("/api/master/sppt/upload", (req, res) => {
       spptData = req.body.data;
     }
     isDataLoaded = true;
-    console.log(`Uploaded ${req.body.data.length} SPPT records.`);
-    res.json({ status: "ok", message: `Berhasil mengunggah ${spptData.length} data SPPT.` });
+    res.json({ status: "ok", message: `Berhasil mengunggah ${req.body.data.length} data. Total: ${spptData.length}` });
   } else {
-    res.status(400).json({ status: "error", message: "Invalid data format" });
+    res.status(400).json({ status: "error", message: "Format data tidak valid" });
   }
+});
+
+app.post("/api/master/clear", (req, res) => {
+  const type = req.body.type;
+  if (type === 'WARGA') wargaData = [];
+  else if (type === 'SPPT') spptData = [];
+  else {
+    wargaData = [];
+    spptData = [];
+  }
+  res.json({ status: "ok", message: "Data master berhasil dikosongkan." });
 });
 
 // API routes FIRST
