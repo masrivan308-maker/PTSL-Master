@@ -78,19 +78,42 @@ export const MasterDataManagement: React.FC = () => {
     if (event.target) event.target.value = '';
   };
 
-  const processData = async (source: File | string, type: DataSource) => {
+  const handleSyncUrl = async () => {
+    if (!googleSheetUrl) return;
+    setIsLoading(true);
+    setUploadProgress('Sinkronisasi data oleh server...');
+    try {
+      const res = await fetch('/api/master/sync-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: googleSheetUrl, type: activeTab })
+      });
+      
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.message || 'Gagal sinkronisasi data.');
+      
+      alert(`Berhasil: ${result.message}`);
+      fetchData();
+    } catch (e: any) {
+      console.error(e);
+      alert('Gagal Sinkronisasi: ' + e.message);
+    } finally {
+      setIsLoading(false);
+      setUploadProgress('');
+    }
+  };
+
+  const processData = async (source: File, type: DataSource) => {
     setIsLoading(true);
     setUploadProgress('Membaca data...');
     try {
       let parsedData: any[] = [];
       
-      if (typeof source === 'string') {
-        // Fetch from URL
-        const res = await fetch(source);
-        if (!res.ok) throw new Error('Gagal mengambil data dari URL. Pastikan link sudah di-publish ke web sebagai CSV.');
-        const csvText = await res.text();
+      // Handle Local File
+      const isCsv = source.name.endsWith('.csv');
+      if (isCsv) {
         parsedData = await new Promise((resolve, reject) => {
-          Papa.parse(csvText, {
+          Papa.parse(source, {
             header: true,
             skipEmptyLines: true,
             dynamicTyping: true,
@@ -99,25 +122,11 @@ export const MasterDataManagement: React.FC = () => {
           });
         });
       } else {
-        // Handle File
-        const isCsv = source.name.endsWith('.csv');
-        if (isCsv) {
-          parsedData = await new Promise((resolve, reject) => {
-            Papa.parse(source, {
-              header: true,
-              skipEmptyLines: true,
-              dynamicTyping: true,
-              complete: (results) => resolve(results.data),
-              error: (error) => reject(error)
-            });
-          });
-        } else {
-          const buffer = await source.arrayBuffer();
-          const workbook = XLSX.read(buffer, { type: 'array' });
-          const firstSheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[firstSheetName];
-          parsedData = XLSX.utils.sheet_to_json(worksheet);
-        }
+        const buffer = await source.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        parsedData = XLSX.utils.sheet_to_json(worksheet);
       }
 
       if (parsedData.length === 0) throw new Error('File kosong atau format tidak sesuai.');
@@ -125,13 +134,13 @@ export const MasterDataManagement: React.FC = () => {
       const endpoint = type === 'WARGA' ? '/api/master/warga/upload' : '/api/master/sppt/upload';
       
       // Upload in smaller chunks with delay to avoid 413 and timeouts
-      const chunkSize = 500; 
+      const chunkSize = 2000; 
       const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
       
       let result;
       for (let i = 0; i < parsedData.length; i += chunkSize) {
         const chunk = parsedData.slice(i, i + chunkSize);
-        setUploadProgress(`Mengunggah chunk ${Math.floor(i / chunkSize) + 1} / ${Math.ceil(parsedData.length / chunkSize)} (${Math.min(i + chunkSize, parsedData.length)} / ${parsedData.length})`);
+        setUploadProgress(`Mengunggah data... ${Math.min(i + chunkSize, parsedData.length)} / ${parsedData.length}`);
         
         const res = await fetch(endpoint, {
           method: 'POST',
@@ -150,12 +159,10 @@ export const MasterDataManagement: React.FC = () => {
            throw new Error(errMsg);
         }
         result = await res.json();
-        
-        // Short delay to let server process
-        if (i + chunkSize < parsedData.length) await delay(100);
+        if (i + chunkSize < parsedData.length) await delay(50);
       }
       
-      alert(`Berhasil: ${result?.message || 'Data berhasil disinkronkan.'}`);
+      alert(`Berhasil: ${result?.message || 'Data berhasil diunggah.'}`);
       fetchData();
     } catch (e: any) {
       console.error(e);
@@ -257,7 +264,7 @@ export const MasterDataManagement: React.FC = () => {
               />
               <button 
                 id="btn-sync-now"
-                onClick={() => processData(googleSheetUrl, activeTab)}
+                onClick={handleSyncUrl}
                 disabled={!googleSheetUrl || isLoading}
                 className="px-6 py-2 bg-amber-600 text-white rounded-lg font-bold hover:bg-amber-700 transition disabled:opacity-50 flex items-center gap-2"
               >

@@ -1,6 +1,7 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+import Papa from "papaparse";
 
 const app = express();
 const PORT = 3000;
@@ -38,6 +39,45 @@ app.post("/api/master/sppt/upload", (req, res) => {
     res.json({ status: "ok", message: `Berhasil mengunggah ${req.body.data.length} data. Total: ${spptData.length}` });
   } else {
     res.status(400).json({ status: "error", message: "Format data tidak valid" });
+  }
+});
+
+app.post("/api/master/sync-url", async (req, res) => {
+  const { url, type } = req.body;
+  if (!url || !type) {
+    return res.status(400).json({ status: "error", message: "URL dan tipe data diperlukan." });
+  }
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Gagal mengambil data: ${response.statusText}`);
+    
+    const csvText = await response.text();
+    const result = Papa.parse(csvText, {
+      header: true,
+      skipEmptyLines: true,
+      dynamicTyping: true
+    });
+
+    if (result.errors && result.errors.length > 0 && result.data.length === 0) {
+      throw new Error(`Gagal parsing CSV: ${result.errors[0].message}`);
+    }
+
+    if (type === 'WARGA') {
+      wargaData = result.data;
+    } else if (type === 'SPPT') {
+      spptData = result.data;
+    }
+
+    isDataLoaded = true;
+    res.json({ 
+      status: "ok", 
+      message: `Berhasil sinkronisasi ${result.data.length} data dari Google Sheets.`,
+      count: result.data.length 
+    });
+  } catch (error: any) {
+    console.error("Sync URL error:", error);
+    res.status(500).json({ status: "error", message: error.message || "Terjadi kesalahan server saat sinkronisasi." });
   }
 });
 
