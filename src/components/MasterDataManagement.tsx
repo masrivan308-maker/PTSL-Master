@@ -170,11 +170,12 @@ export const MasterDataManagement: React.FC = () => {
   }, [searchQuery]);
 
   useEffect(() => {
-    if (user) fetchData();
-  }, [activeTab, page, limit, debouncedSearch, user]);
+    fetchData();
+  }, [activeTab, page, limit, debouncedSearch]);
+
+  const isAdmin = user?.email === 'masrivan308@gmail.com';
 
   const fetchData = async () => {
-    if (!user) return;
     setIsLoading(true);
     try {
       const collectionName = activeTab === 'WARGA' ? 'master_warga' : 'master_sppt';
@@ -259,19 +260,19 @@ export const MasterDataManagement: React.FC = () => {
         };
 
         if (type === 'WARGA') {
-          const nik = String(findVal(['NIK', 'noKtp', 'no_ktp', 'nomor_induk']) || '');
-          if (!nik || nik.length < 10) return null;
+          const nik = String(findVal(['NIK', 'noKtp', 'no_ktp', 'nomor_induk', 'ID']) || '');
+          if (!nik) return null;
           newItem.NIK = nik;
-          newItem.NAMA = String(findVal(['NAMA', 'nama_lengkap', 'fullname']) || '-');
-          newItem.ALAMAT = String(findVal(['ALAMAT', 'address', 'tempat_tinggal']) || '-');
-          newItem.KEL_DESA = String(findVal(['KEL/DESA', 'KEL_DESA', 'KELURAHAN', 'DESA', 'kelDesa']) || '-');
+          newItem.NAMA = String(findVal(['NAMA', 'nama_lengkap', 'fullname', 'NAMA_LENKAP']) || '-');
+          newItem.ALAMAT = String(findVal(['ALAMAT', 'address', 'tempat_tinggal', 'ALAMAT_TINGGAL']) || '-');
+          newItem.KEL_DESA = String(findVal(['KEL/DESA', 'KEL_DESA', 'KELURAHAN', 'DESA', 'kelDesa', 'KEL']) || '-');
         } else {
-          const nop = String(findVal(['NOP', 'nopSppt', 'nop_sppt', 'nomor_objek']) || '');
-          if (!nop || nop.length < 10) return null;
+          const nop = String(findVal(['NOP', 'nopSppt', 'nop_sppt', 'nomor_objek', 'ID_OBJEK']) || '');
+          if (!nop) return null;
           newItem.NOP = nop;
-          newItem.NAMA_WAJIB_PAJAK = String(findVal(['NAMA WAJIB PAJAK', 'NAMA_WAJIB_PAJAK', 'OWNER', 'PEMILIK']) || '-');
-          newItem.LUAS_SPPT = Number(findVal(['LUAS SPPT', 'LUAS_SPPT', 'LUAS']) || 0);
-          newItem.NJOP_PERMETER = Number(findVal(['NJOP PERMETER', 'NJOP_PERMETER', 'NJOP']) || 0);
+          newItem.NAMA_WAJIB_PAJAK = String(findVal(['NAMA WAJIB PAJAK', 'NAMA_WAJIB_PAJAK', 'OWNER', 'PEMILIK', 'WAJIB_PAJAK']) || '-');
+          newItem.LUAS_SPPT = Number(findVal(['LUAS SPPT', 'LUAS_SPPT', 'LUAS', 'LUAS_TANAH']) || 0);
+          newItem.NJOP_PERMETER = Number(findVal(['NJOP PERMETER', 'NJOP_PERMETER', 'NJOP', 'HARGA_METER']) || 0);
           newItem.DUSUN = String(findVal(['DUSUN']) || '-');
           newItem.BLOK = String(findVal(['BLOK']) || '-');
           newItem.RT = String(findVal(['RT']) || '-');
@@ -339,8 +340,9 @@ export const MasterDataManagement: React.FC = () => {
     const payload = { ...formData, updatedAt: serverTimestamp() };
     try {
       await setDoc(docRef, payload, { merge: true });
-      // Refresh local state
-      setData(data.map(item => item.id === id ? { ...item, ...payload } : item));
+      alert(`Berhasil menyimpan data ${activeTab}.`);
+      // Refresh local state if it's an edit, or re-fetch if it's new
+      fetchData();
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `${collectionName}/${id}`);
     }
@@ -382,25 +384,6 @@ export const MasterDataManagement: React.FC = () => {
     }
   };
 
-  if (!user) {
-    return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center p-8 text-center">
-        <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mb-6 shadow-sm">
-          <Lock size={40} />
-        </div>
-        <h2 className="text-2xl font-bold text-slate-800 mb-2">Akses Terbatas</h2>
-        <p className="text-slate-500 max-w-md mb-8">Anda harus masuk untuk mengelola data master yang tercatat di sistem cloud.</p>
-        <button 
-          onClick={signInWithGoogle}
-          className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg flex items-center gap-3"
-        >
-          <Database size={20} />
-          Masuk dengan Google
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="p-8">
       <IndividualEditModal 
@@ -432,23 +415,35 @@ export const MasterDataManagement: React.FC = () => {
             ref={fileInputSpptRef}
             onChange={(e) => handleFileUpload(e, 'SPPT')}
           />
-          <button 
-            id="btn-add-manual"
-            onClick={() => setIsAddingNew(true)}
-            className="px-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-lg flex items-center gap-2 font-bold hover:bg-slate-50 transition shadow-sm"
-          >
-            <PlusCircle size={18} className="text-green-600" />
-            Tambah Manual
-          </button>
-          <button 
-            id="btn-upload-master"
-            onClick={() => activeTab === 'WARGA' ? fileInputWargaRef.current?.click() : fileInputSpptRef.current?.click()}
-            disabled={isLoading}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg flex items-center gap-2 font-bold hover:bg-indigo-700 transition disabled:opacity-50 shadow-sm"
-          >
-            <Upload size={18} />
-            Upload {activeTab === 'WARGA' ? 'NIK' : 'NOP'}
-          </button>
+          {isAdmin ? (
+            <>
+              <button 
+                id="btn-add-manual"
+                onClick={() => setIsAddingNew(true)}
+                className="px-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-lg flex items-center gap-2 font-bold hover:bg-slate-50 transition shadow-sm"
+              >
+                <PlusCircle size={18} className="text-green-600" />
+                Tambah Manual
+              </button>
+              <button 
+                id="btn-upload-master"
+                onClick={() => activeTab === 'WARGA' ? fileInputWargaRef.current?.click() : fileInputSpptRef.current?.click()}
+                disabled={isLoading}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg flex items-center gap-2 font-bold hover:bg-indigo-700 transition disabled:opacity-50 shadow-sm"
+              >
+                <Upload size={18} />
+                Upload {activeTab === 'WARGA' ? 'NIK' : 'NOP'}
+              </button>
+            </>
+          ) : !user && (
+            <button 
+              onClick={signInWithGoogle}
+              className="px-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-lg flex items-center gap-2 font-bold hover:bg-slate-50 transition shadow-sm"
+            >
+              <Lock size={18} className="text-slate-400" />
+              Masuk Admin
+            </button>
+          )}
         </div>
       </div>
 
@@ -472,14 +467,16 @@ export const MasterDataManagement: React.FC = () => {
             Data SPPT
           </button>
         </div>
-        <button 
-          id="btn-clear-master"
-          onClick={clearMasterData}
-          disabled={isLoading}
-          className="text-xs font-bold text-red-500 hover:text-red-700 flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-red-50 transition"
-        >
-          <Trash2 size={14} /> Kosongkan Data {activeTab}
-        </button>
+        {isAdmin && (
+          <button 
+            id="btn-clear-master"
+            onClick={clearMasterData}
+            disabled={isLoading}
+            className="text-xs font-bold text-red-500 hover:text-red-700 flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-red-50 transition"
+          >
+            <Trash2 size={14} /> Kosongkan Data {activeTab}
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -548,8 +545,14 @@ export const MasterDataManagement: React.FC = () => {
                         <td className="p-4 text-sm text-slate-600 truncate max-w-[300px]">{row['ALAMAT'] || '-'} - {row['KEL_DESA'] || row['KEL/DESA'] || '-'}</td>
                         <td className="p-4 text-center">
                           <div className="flex justify-center gap-2">
-                             <button onClick={() => setEditingItem(row)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"><Edit2 size={16}/></button>
-                             <button onClick={() => deleteRecord(row.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition"><Trash2 size={16}/></button>
+                             {isAdmin ? (
+                               <>
+                                 <button onClick={() => setEditingItem(row)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"><Edit2 size={16}/></button>
+                                 <button onClick={() => deleteRecord(row.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition"><Trash2 size={16}/></button>
+                               </>
+                             ) : (
+                               <span className="text-[10px] text-slate-300 italic font-medium">Read Only</span>
+                             )}
                           </div>
                         </td>
                       </>
@@ -574,8 +577,14 @@ export const MasterDataManagement: React.FC = () => {
                         </td>
                         <td className="p-4 text-center">
                           <div className="flex justify-center gap-2">
-                             <button onClick={() => setEditingItem(row)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"><Edit2 size={16}/></button>
-                             <button onClick={() => deleteRecord(row.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition"><Trash2 size={16}/></button>
+                             {isAdmin ? (
+                               <>
+                                 <button onClick={() => setEditingItem(row)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"><Edit2 size={16}/></button>
+                                 <button onClick={() => deleteRecord(row.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition"><Trash2 size={16}/></button>
+                               </>
+                             ) : (
+                               <span className="text-[10px] text-slate-300 italic font-medium">Read Only</span>
+                             )}
                           </div>
                         </td>
                       </>
@@ -595,7 +604,7 @@ export const MasterDataManagement: React.FC = () => {
                             ? `Tidak ada data master ${activeTab} yang cocok dengan pencarian "${searchQuery}".`
                             : `Data master ${activeTab} belum terisi. Silakan tambah data secara manual atau unggah file CSV/Excel.`}
                         </p>
-                        {!searchQuery && (
+                        {!searchQuery && isAdmin && (
                           <div className="mt-6 flex flex-wrap justify-center gap-2">
                              <button onClick={() => setIsAddingNew(true)} className="px-4 py-2 bg-green-50 text-green-700 text-xs font-bold rounded-lg border border-green-100 hover:bg-green-100 transition flex items-center gap-2">
                                 <PlusCircle size={14} /> Tambah Manual

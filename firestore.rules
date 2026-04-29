@@ -23,12 +23,16 @@ service cloud.firestore {
       return resource.data;
     }
 
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == "masrivan308@gmail.com";
+    }
+
     // --- Master Warga ---
     match /master_warga/{nik} {
-      allow read: if isSignedIn();
-      allow delete: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(nik) && isValidWarga(incoming());
-      allow update: if isSignedIn() && isValidId(nik) && isValidWarga(incoming()) && (
+      allow read: if true; // Publicly readable as requested
+      allow delete: if isAdmin();
+      allow create: if isAdmin() && isValidId(nik) && isValidWarga(incoming());
+      allow update: if isAdmin() && isValidId(nik) && isValidWarga(incoming()) && (
         // Identity integrity check: NIK inside data must match doc ID
         incoming().NIK == nik &&
         incoming().NIK == existing().NIK 
@@ -37,19 +41,19 @@ service cloud.firestore {
 
     function isValidWarga(data) {
       return data.keys().hasAll(['NIK', 'NAMA', 'updatedAt']) &&
-             data.NIK is string && data.NIK.size() >= 10 && data.NIK.size() <= 20 &&
-             data.NAMA is string && data.NAMA.size() >= 2 && data.NAMA.size() <= 100 &&
-             (data.get('ALAMAT', '') is string) && (data.get('ALAMAT', '').size() <= 500) &&
-             (data.get('KEL_DESA', '') is string) && (data.get('KEL_DESA', '').size() <= 100) &&
+             data.NIK is string && data.NIK.size() >= 1 && data.NIK.size() <= 64 &&
+             data.NAMA is string && data.NAMA.size() >= 1 && data.NAMA.size() <= 256 &&
+             (data.get('ALAMAT', '') is string) && (data.get('ALAMAT', '').size() <= 1024) &&
+             (data.get('KEL_DESA', '') is string) && (data.get('KEL_DESA', '').size() <= 256) &&
              data.updatedAt == request.time;
     }
 
     // --- Master SPPT ---
     match /master_sppt/{nop} {
-      allow read: if isSignedIn();
-      allow delete: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(nop) && isValidSppt(incoming());
-      allow update: if isSignedIn() && isValidId(nop) && isValidSppt(incoming()) && (
+      allow read: if true; // Publicly readable
+      allow delete: if isAdmin();
+      allow create: if isAdmin() && isValidId(nop) && isValidSppt(incoming());
+      allow update: if isAdmin() && isValidId(nop) && isValidSppt(incoming()) && (
         // Identity integrity check
         incoming().NOP == nop &&
         incoming().NOP == existing().NOP
@@ -58,17 +62,28 @@ service cloud.firestore {
 
     function isValidSppt(data) {
       return data.keys().hasAll(['NOP', 'NAMA_WAJIB_PAJAK', 'updatedAt']) &&
-             data.NOP is string && data.NOP.size() >= 10 && data.NOP.size() <= 30 &&
-             data.NAMA_WAJIB_PAJAK is string && data.NAMA_WAJIB_PAJAK.size() >= 2 && data.NAMA_WAJIB_PAJAK.size() <= 100 &&
+             data.NOP is string && data.NOP.size() >= 1 && data.NOP.size() <= 64 &&
+             data.NAMA_WAJIB_PAJAK is string && data.NAMA_WAJIB_PAJAK.size() >= 1 && data.NAMA_WAJIB_PAJAK.size() <= 256 &&
              (data.get('LUAS_SPPT', 0) is number) &&
              (data.get('NJOP_PERMETER', 0) is number) &&
-             (data.get('DUSUN', '') is string) &&
-             (data.get('BLOK', '') is string) &&
-             (data.get('RT', '') is string) &&
-             (data.get('RW', '') is string) &&
-             (data.get('DESA', '') is string) &&
-             (data.get('KECAMATAN', '') is string) &&
+             (data.get('DUSUN', '') is string) && (data.get('DUSUN', '').size() <= 256) &&
+             (data.get('BLOK', '') is string) && (data.get('BLOK', '').size() <= 256) &&
+             (data.get('RT', '') is string) && (data.get('RT', '').size() <= 256) &&
+             (data.get('RW', '') is string) && (data.get('RW', '').size() <= 256) &&
+             (data.get('DESA', '') is string) && (data.get('DESA', '').size() <= 256) &&
+             (data.get('KECAMATAN', '') is string) && (data.get('KECAMATAN', '').size() <= 256) &&
              data.updatedAt == request.time;
+    }
+    // --- PTSL Data ---
+    match /ptsl_data/{docId} {
+      allow read: if true; // Visible to everyone as per request
+      allow write: if isSignedIn();
+    }
+
+    // --- Users ---
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
   }
 }

@@ -43,6 +43,15 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path
   }
   console.error('Firestore Error: ', JSON.stringify(errInfo));
+  
+  let userFriendlyMsg = `Gagal melakukan operasi ${operationType} pada ${path}.`;
+  if (errInfo.error.includes('permission-denied')) {
+    userFriendlyMsg = `Akses Ditolak: Data tidak sesuai format (NIK harus 10-20 digit, NOP 10-30 digit) atau Anda tidak memiliki izin.`;
+  } else if (errInfo.error.includes('offline')) {
+    userFriendlyMsg = `Koneksi Terputus: Pastikan internet Anda aktif.`;
+  }
+  
+  alert(`❌ ERROR DATABASE\n${userFriendlyMsg}\n\nDetail: ${errInfo.error}`);
   throw new Error(JSON.stringify(errInfo));
 }
 

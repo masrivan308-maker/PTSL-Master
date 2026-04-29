@@ -55,13 +55,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (user) {
-      const unsubscribe = dbService.listenPTSL((data) => {
-        setRows(data);
-      });
-      return () => unsubscribe();
-    }
-  }, [user]);
+    const unsubscribe = dbService.listenPTSL((data) => {
+      setRows(data);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -104,10 +102,6 @@ export default function App() {
     );
   }
 
-  if (!user) {
-    return <Login onLogin={() => {}} />;
-  }
-
   return (
     <div className="min-h-screen bg-slate-50 font-sans flex">
       <aside className="w-72 bg-white border-r border-slate-200 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-10 shrink-0">
@@ -116,7 +110,7 @@ export default function App() {
             <LayoutDashboard className="text-white" size={24} />
           </div>
           <h1 className="text-xl font-bold tracking-tight text-slate-800">Sistem PTSL</h1>
-          <p className="text-[11px] text-slate-500 font-medium uppercase tracking-widest mt-2">{user?.role === 'admin' ? 'Administrator' : 'Operator'}</p>
+          <p className="text-[11px] text-slate-500 font-medium uppercase tracking-widest mt-2">{user ? (user?.role === 'admin' ? 'Administrator' : 'Operator') : 'Mode Lihat Data'}</p>
         </div>
         
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
@@ -128,21 +122,25 @@ export default function App() {
             Data Pemohon
           </button>
           
-          <button 
-            onClick={() => { setView('form'); setEditingRow(undefined); }}
-            className={`w-full p-3 rounded-xl flex items-center gap-3 font-semibold transition-colors ${view === 'form' && !editingRow ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'}`}
-          >
-            <PlusCircle size={20} />
-            Input Data Baru
-          </button>
+          {user && (
+            <>
+              <button 
+                onClick={() => { setView('form'); setEditingRow(undefined); }}
+                className={`w-full p-3 rounded-xl flex items-center gap-3 font-semibold transition-colors ${view === 'form' && !editingRow ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                <PlusCircle size={20} />
+                Input Data Baru
+              </button>
 
-          <button 
-            onClick={handleExport}
-            className="w-full p-3 rounded-xl flex items-center gap-3 font-semibold text-slate-500 hover:bg-slate-50 transition-colors"
-          >
-            <FileSpreadsheet size={20} />
-            Export Laporan
-          </button>
+              <button 
+                onClick={handleExport}
+                className="w-full p-3 rounded-xl flex items-center gap-3 font-semibold text-slate-500 hover:bg-slate-50 transition-colors"
+              >
+                <FileSpreadsheet size={20} />
+                Export Laporan
+              </button>
+            </>
+          )}
 
           <button 
             onClick={() => setView('master')}
@@ -166,23 +164,31 @@ export default function App() {
         </nav>
 
         <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col gap-4">
-          <div className="flex items-center gap-3 px-4">
-            <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 shrink-0">
-               <User size={18} />
+          {user ? (
+            <>
+              <div className="flex items-center gap-3 px-4">
+                <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 shrink-0">
+                   <User size={18} />
+                </div>
+                <div className="flex flex-col min-w-0">
+                   <span className="text-xs font-bold text-slate-800 truncate">{user?.displayName}</span>
+                   <span className="text-[9px] text-slate-400 font-bold uppercase">{user?.role === 'admin' ? 'Administrator' : 'Operator'}</span>
+                </div>
+              </div>
+              
+              <button 
+                onClick={handleLogout}
+                className="flex items-center justify-between p-4 text-rose-600 hover:bg-rose-50 transition-colors mx-2 rounded-xl mb-4 font-bold text-sm"
+              >
+                <span>Log out</span>
+                <LogOut size={16} />
+              </button>
+            </>
+          ) : (
+            <div className="p-4">
+               <Login onLogin={() => {}} />
             </div>
-            <div className="flex flex-col min-w-0">
-               <span className="text-xs font-bold text-slate-800 truncate">{user?.displayName}</span>
-               <span className="text-[9px] text-slate-400 font-bold uppercase">{user?.role === 'admin' ? 'Administrator' : 'Operator'}</span>
-            </div>
-          </div>
-          
-          <button 
-            onClick={handleLogout}
-            className="flex items-center justify-between p-4 text-rose-600 hover:bg-rose-50 transition-colors mx-2 rounded-xl mb-4 font-bold text-sm"
-          >
-            <span>Log out</span>
-            <LogOut size={16} />
-          </button>
+          )}
         </div>
       </aside>
 
@@ -214,6 +220,7 @@ export default function App() {
                 onEdit={handleEdit} 
                 onDelete={handleDelete}
                 onExport={handleExport}
+                user={user}
               />
             </div>
           ) : view === 'users' && user?.role === 'admin' ? (

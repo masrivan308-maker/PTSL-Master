@@ -9,11 +9,12 @@ interface Props {
   onEdit: (row: PTSLData) => void;
   onDelete: (id: string) => void;
   onExport: () => void;
+  user?: any;
 }
 
 const PAGE_SIZES = [25, 50, 100, 500];
 
-export const PTSLList: React.FC<Props> = ({ rows, onAdd, onEdit, onDelete, onExport }) => {
+export const PTSLList: React.FC<Props> = ({ rows, onAdd, onEdit, onDelete, onExport, user }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -61,20 +62,28 @@ export const PTSLList: React.FC<Props> = ({ rows, onAdd, onEdit, onDelete, onExp
         </form>
         
         <div className="flex gap-3 w-full md:w-auto">
-          <button 
-            onClick={onExport}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all shadow-sm"
-          >
-            <FileSpreadsheet size={18} />
-            Export XLS
-          </button>
-          <button 
-            onClick={onAdd}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-sm font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all hover:scale-105"
-          >
-            <Plus size={18} />
-            Tambah Data
-          </button>
+          {user ? (
+            <>
+              <button 
+                onClick={onExport}
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all shadow-sm"
+              >
+                <FileSpreadsheet size={18} />
+                Export XLS
+              </button>
+              <button 
+                onClick={onAdd}
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-sm font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all hover:scale-105"
+              >
+                <Plus size={18} />
+                Tambah Data
+              </button>
+            </>
+          ) : (
+            <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-2xl text-[10px] font-bold text-slate-500 uppercase tracking-widest border border-slate-200">
+               Mode Lihat Data
+            </div>
+          )}
         </div>
       </div>
 
@@ -121,20 +130,26 @@ export const PTSLList: React.FC<Props> = ({ rows, onAdd, onEdit, onDelete, onExp
                     </td>
                     <td className="px-6 py-5 text-right">
                       <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
-                        <button 
-                          onClick={() => onEdit(row)}
-                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-xl transition-all border border-transparent hover:border-slate-200"
-                          title="Edit Data"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        <button 
-                          onClick={() => onDelete(row.id!)}
-                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-white rounded-xl transition-all border border-transparent hover:border-slate-200"
-                          title="Hapus Data"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        {user ? (
+                          <>
+                            <button 
+                              onClick={() => onEdit(row)}
+                              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-xl transition-all border border-transparent hover:border-slate-200"
+                              title="Edit Data"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button 
+                              onClick={() => onDelete(row.id!)}
+                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-white rounded-xl transition-all border border-transparent hover:border-slate-200"
+                              title="Hapus Data"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </>
+                        ) : (
+                           <span className="text-[10px] text-slate-300 italic font-medium mr-2">Read Only</span>
+                        )}
                         <div className="p-2 text-slate-300 group-hover:text-slate-400 transition-colors">
                           {expandedRow === row.id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                         </div>
