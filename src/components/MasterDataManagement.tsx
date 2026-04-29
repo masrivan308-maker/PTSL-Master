@@ -186,7 +186,7 @@ export const MasterDataManagement: React.FC = () => {
       setTotalPages(Math.ceil(totalCount / limit));
 
       // Build query
-      let q = query(colRef, orderBy(activeTab === 'WARGA' ? 'NIK' : 'NOP'), limit(limit));
+      let q = query(colRef, limit(limit));
       
       if (debouncedSearch) {
         q = query(
@@ -196,19 +196,20 @@ export const MasterDataManagement: React.FC = () => {
           limit(limit)
         );
       } else if (page > 1) {
-        const skipQ = query(colRef, orderBy(activeTab === 'WARGA' ? 'NIK' : 'NOP'), limit((page - 1) * limit));
+        const skipQ = query(colRef, limit((page - 1) * limit));
         const skipSnapshot = await getDocs(skipQ);
         const lastDoc = skipSnapshot.docs[skipSnapshot.docs.length - 1];
         if (lastDoc) {
-          q = query(colRef, orderBy(activeTab === 'WARGA' ? 'NIK' : 'NOP'), startAfter(lastDoc), limit(limit));
+          q = query(colRef, startAfter(lastDoc), limit(limit));
         }
       }
 
       const querySnapshot = await getDocs(q);
       const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setData(results);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Fetch error:', err);
+      // alert('Gagal mengambil data dari server: ' + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -550,7 +551,7 @@ export const MasterDataManagement: React.FC = () => {
                   <tr key={row.id || i} className={`border-b border-slate-100 last:border-0 hover:bg-slate-50/50 transition-colors ${isLoading ? 'opacity-50' : ''}`}>
                     {activeTab === 'WARGA' ? (
                       <>
-                        <td className="p-4 pl-6 font-mono text-sm text-slate-700">{row['NIK'] || '-'}</td>
+                        <td className="p-4 pl-6 font-mono text-sm text-slate-700">{row['NIK'] || row.id || '-'}</td>
                         <td className="p-4 font-bold text-slate-800 text-sm">{row['NAMA'] || '-'}</td>
                         <td className="p-4 text-sm text-slate-600 truncate max-w-[300px]">{row['ALAMAT'] || '-'} - {row['KEL_DESA'] || row['KEL/DESA'] || '-'}</td>
                         <td className="p-4 text-center">
@@ -568,7 +569,7 @@ export const MasterDataManagement: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        <td className="p-4 pl-6 font-mono text-sm text-slate-700">{row['NOP'] || '-'}</td>
+                        <td className="p-4 pl-6 font-mono text-sm text-slate-700">{row['NOP'] || row.id || '-'}</td>
                         <td className="p-4 font-bold text-slate-800 text-sm whitespace-normal min-w-[150px]">{row['NAMA_WAJIB_PAJAK'] || '-'}</td>
                         <td className="p-4 text-sm text-slate-600 text-center">
                           <div className="font-bold">{row['LUAS_SPPT'] || '-'} m²</div>
