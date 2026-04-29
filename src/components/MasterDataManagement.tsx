@@ -23,7 +23,7 @@ import {
   getDoc
 } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { db, auth, signInWithGoogle } from '../lib/firebase';
+import { db, auth, signInWithGoogle } from '../firebase';
 
 type DataSource = 'WARGA' | 'SPPT';
 
@@ -645,8 +645,24 @@ export const MasterDataManagement: React.FC = () => {
                 ))}
                 {data.length === 0 && (
                   <tr>
-                    <td colSpan={activeTab === 'WARGA' ? 3 : 6} className="p-8 text-center text-slate-500 text-sm">
-                      {searchQuery ? 'Data tidak ditemukan.' : 'Belum ada data referensi.'}
+                    <td colSpan={activeTab === 'WARGA' ? 4 : 7} className="p-16 text-center">
+                      <div className="flex flex-col items-center max-w-sm mx-auto">
+                        <div className="w-16 h-16 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mb-4">
+                           <Database size={32} />
+                        </div>
+                        <h4 className="text-slate-800 font-bold mb-1">Database Cloud Kosong</h4>
+                        <p className="text-slate-500 text-xs leading-relaxed">
+                          {searchQuery 
+                            ? `Tidak ada data master ${activeTab} yang cocok dengan pencarian "${searchQuery}".`
+                            : `Anda baru saja beralih ke sistem Cloud. Silakan unggah file CSV/Excel atau gunakan fitur Sync URL untuk mengisi data master ${activeTab}.`}
+                        </p>
+                        {!searchQuery && (
+                          <div className="mt-6 flex flex-wrap justify-center gap-2">
+                             <button onClick={() => setShowUrlInput(true)} className="px-4 py-2 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg border border-amber-100 hover:bg-amber-100 transition">Sync dari Google Sheets</button>
+                             <button onClick={() => activeTab === 'WARGA' ? fileInputWargaRef.current?.click() : fileInputSpptRef.current?.click()} className="px-4 py-2 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-100 hover:bg-indigo-100 transition">Upload File</button>
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )}

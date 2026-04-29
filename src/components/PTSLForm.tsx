@@ -6,7 +6,7 @@ import { ChevronRight, ChevronLeft, Save, X, User, MapPin, History, ShieldCheck,
 import { motion, AnimatePresence } from 'motion/react';
 import { dbService } from '../dbService';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db } from '../firebase';
 
 interface Props {
   initialData?: PTSLData;
