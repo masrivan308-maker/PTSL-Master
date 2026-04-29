@@ -23,7 +23,7 @@ import {
   getDoc
 } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { db, auth, signInWithGoogle } from '../firebase';
+import { db, auth, signInWithGoogle, handleFirestoreError, OperationType } from '../firebase';
 
 type DataSource = 'WARGA' | 'SPPT';
 
@@ -227,7 +227,7 @@ export const MasterDataManagement: React.FC = () => {
           Papa.parse(source, {
             header: true,
             skipEmptyLines: true,
-            dynamicTyping: true,
+            dynamicTyping: false, // Penting: Jangan otomatis ubah NIK/NOP jadi number (menghindari kehilangan presisi)
             complete: (results) => resolve(results.data),
             error: (error) => reject(error)
           });
@@ -248,29 +248,43 @@ export const MasterDataManagement: React.FC = () => {
       // Transform data keys to be consistent with our rules and blueprint
       const cleanedData = parsedData.map(item => {
         const newItem: any = { updatedAt: serverTimestamp() };
+        
+        // Helper to find value regardless of case or slight name variants
+        const findVal = (keys: string[]) => {
+          for (const k of keys) {
+            const foundKey = Object.keys(item).find(key => key.toUpperCase() === k.toUpperCase());
+            if (foundKey) return item[foundKey];
+          }
+          return undefined;
+        };
+
         if (type === 'WARGA') {
-          const nik = String(item['NIK'] || item['noKtp'] || '');
-          if (!nik) return null;
+          const nik = String(findVal(['NIK', 'noKtp', 'no_ktp', 'nomor_induk']) || '');
+          if (!nik || nik.length < 10) return null;
           newItem.NIK = nik;
-          newItem.NAMA = item['NAMA'] || item['nama'] || '-';
-          newItem.ALAMAT = item['ALAMAT'] || item['alamat'] || '-';
-          newItem.KEL_DESA = item['KEL/DESA'] || item['kelDesa'] || '-';
+          newItem.NAMA = String(findVal(['NAMA', 'nama_lengkap', 'fullname']) || '-');
+          newItem.ALAMAT = String(findVal(['ALAMAT', 'address', 'tempat_tinggal']) || '-');
+          newItem.KEL_DESA = String(findVal(['KEL/DESA', 'KEL_DESA', 'KELURAHAN', 'DESA', 'kelDesa']) || '-');
         } else {
-          const nop = String(item['NOP'] || item['nopSppt'] || '');
-          if (!nop) return null;
+          const nop = String(findVal(['NOP', 'nopSppt', 'nop_sppt', 'nomor_objek']) || '');
+          if (!nop || nop.length < 10) return null;
           newItem.NOP = nop;
-          newItem.NAMA_WAJIB_PAJAK = item['NAMA WAJIB PAJAK'] || item['namaWajibPajak'] || '-';
-          newItem.LUAS_SPPT = Number(item['LUAS SPPT'] || item['luasSppt'] || 0);
-          newItem.NJOP_PERMETER = Number(item['NJOP PERMETER'] || item['njopPermeter'] || 0);
-          newItem.DUSUN = item['DUSUN'] || '-';
-          newItem.BLOK = item['BLOK'] || '-';
-          newItem.RT = String(item['RT'] || '-');
-          newItem.RW = String(item['RW'] || '-');
-          newItem.DESA = item['DESA'] || '-';
-          newItem.KECAMATAN = item['KECAMATAN'] || '-';
+          newItem.NAMA_WAJIB_PAJAK = String(findVal(['NAMA WAJIB PAJAK', 'NAMA_WAJIB_PAJAK', 'OWNER', 'PEMILIK']) || '-');
+          newItem.LUAS_SPPT = Number(findVal(['LUAS SPPT', 'LUAS_SPPT', 'LUAS']) || 0);
+          newItem.NJOP_PERMETER = Number(findVal(['NJOP PERMETER', 'NJOP_PERMETER', 'NJOP']) || 0);
+          newItem.DUSUN = String(findVal(['DUSUN']) || '-');
+          newItem.BLOK = String(findVal(['BLOK']) || '-');
+          newItem.RT = String(findVal(['RT']) || '-');
+          newItem.RW = String(findVal(['RW']) || '-');
+          newItem.DESA = String(findVal(['DESA']) || '-');
+          newItem.KECAMATAN = String(findVal(['KECAMATAN']) || '-');
         }
         return newItem;
       }).filter(Boolean);
+
+      if (cleanedData.length === 0) {
+        throw new Error('Tidak ada data valid yang bisa diimpor. Pastikan kolom NIK atau NOP tersedia dan benar.');
+      }
 
       setUploadProgress(`Menyiapkan ${cleanedData.length} data...`);
       
@@ -285,7 +299,11 @@ export const MasterDataManagement: React.FC = () => {
           batch.set(docRef, item);
         });
 
-        await batch.commit();
+        try {
+          await batch.commit();
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, collectionName);
+        }
         setUploadProgress(`Sinkronisasi Firestore... ${Math.min(i + batchSize, cleanedData.length)} / ${cleanedData.length}`);
       }
 
@@ -302,13 +320,13 @@ export const MasterDataManagement: React.FC = () => {
 
   const deleteRecord = async (id: string) => {
     if (!confirm('Hapus data ini?')) return;
+    const collectionName = activeTab === 'WARGA' ? 'master_warga' : 'master_sppt';
     try {
-      const collectionName = activeTab === 'WARGA' ? 'master_warga' : 'master_sppt';
       await deleteDoc(doc(db, collectionName, id));
       setData(data.filter(item => item.id !== id));
       setTotal(t => t - 1);
     } catch (err) {
-      alert('Gagal menghapus data.');
+      handleFirestoreError(err, OperationType.DELETE, `${collectionName}/${id}`);
     }
   };
 
@@ -319,10 +337,13 @@ export const MasterDataManagement: React.FC = () => {
     const docRef = doc(db, collectionName, id);
     
     const payload = { ...formData, updatedAt: serverTimestamp() };
-    await setDoc(docRef, payload, { merge: true });
-    
-    // Refresh local state
-    setData(data.map(item => item.id === id ? { ...item, ...payload } : item));
+    try {
+      await setDoc(docRef, payload, { merge: true });
+      // Refresh local state
+      setData(data.map(item => item.id === id ? { ...item, ...payload } : item));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `${collectionName}/${id}`);
+    }
   };
 
   const clearMasterData = async () => {
