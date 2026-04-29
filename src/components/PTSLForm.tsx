@@ -5,6 +5,8 @@ import { PTSLSchema, PTSLData, DEFAULT_VALUES } from '../types';
 import { ChevronRight, ChevronLeft, Save, X, User, MapPin, History, ShieldCheck, FileText, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { dbService } from '../dbService';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 interface Props {
   initialData?: PTSLData;
@@ -103,27 +105,26 @@ export const PTSLForm: React.FC<Props> = ({ initialData, onSave, onCancel }) => 
       return;
     }
     try {
-      const res = await fetch(`/api/master/warga?search=${encodeURIComponent(nikValue)}`);
-      if (!res.ok) throw new Error('Network error');
-      const data = await res.json();
-      const found = data.data && data.data.length > 0 ? data.data[0] : null;
-
-      if (found) {
+      const docRef = doc(db, 'master_warga', String(nikValue));
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        const found = docSnap.data();
         setValue('nama', found.NAMA || found.nama || '');
         setValue('tempatLahir', found['TEMPAT LAHIR'] || found.tempatLahir || '');
         setValue('tanggalLahir', parseDateStringToFormat(found['TANGGAL LAHIR'] || found.tanggalLahir || ''));
         setValue('alamat', found.ALAMAT || found.alamat || '');
         setValue('rtRw', found['RT/RW'] || found.rtRw || '');
-        setValue('kelDesa', found['KEL/DESA'] || found.kelDesa || '');
+        setValue('kelDesa', found.KEL_DESA || found['KEL/DESA'] || found.kelDesa || '');
         setValue('kecamatan', found.KECAMATAN || found.kecamatan || '');
         setValue('pekerjaan', found.PEKERJAAN || found.pekerjaan || '');
         setValue('noHp', found['NO HP'] || found.noHp || '');
-        alert('✅ DATA DITEMUKAN\nIdentitas pemohon telah diisi otomatis.');
+        alert('✅ DATA DITEMUKAN\nIdentitas pemohon telah diisi otomatis dari Cloud.');
       } else {
-        alert('❌ DATA TIDAK DITEMUKAN\nNIK: ' + nikValue + ' tidak ada dalam database referensi.');
+        alert('❌ DATA TIDAK DITEMUKAN\nNIK: ' + nikValue + ' tidak ada dalam database cloud.');
       }
     } catch (err) {
-      alert('❌ GAGAL MENCARI DATA\nTerjadi kesalahan saat mencari NIK. Pastikan data sudah tersinkronisasi.');
+      alert('❌ GAGAL MENCARI DATA\nTerjadi kesalahan koneksi database.');
       console.error(err);
     }
   };
@@ -134,23 +135,22 @@ export const PTSLForm: React.FC<Props> = ({ initialData, onSave, onCancel }) => 
       return;
     }
     try {
-      const res = await fetch(`/api/master/sppt?search=${encodeURIComponent(nopValue)}`);
-      if (!res.ok) throw new Error('Network error');
-      const data = await res.json();
-      const found = data.data && data.data.length > 0 ? data.data[0] : null;
+      const docRef = doc(db, 'master_sppt', String(nopValue));
+      const docSnap = await getDoc(docRef);
 
-      if (found) {
-        setValue('namaWajibPajak', found['NAMA WAJIB PAJAK'] || found.namaWajibPajak || '');
-        setValue('luasSppt', String(found['LUAS SPPT'] || found.luasSppt || '0'));
-        setValue('njopPermeter', String(found['NJOP PERMETER'] || found.njopPermeter || '0'));
+      if (docSnap.exists()) {
+        const found = docSnap.data();
+        setValue('namaWajibPajak', found.NAMA_WAJIB_PAJAK || found.namaWajibPajak || '');
+        setValue('luasSppt', String(found.LUAS_SPPT || found.luasSppt || '0'));
+        setValue('njopPermeter', String(found.NJOP_PERMETER || found.njopPermeter || '0'));
         
         // Populate Lokasi & Objek (Section 3) fields
-        const dusunVal = found.DUSUN ?? found.dusun ?? found['ALAMAT OP'] ?? found['DUSUN/JALAN'] ?? found['DUSUN / JALAN'] ?? '';
-        const blokVal = found.BLOK ?? found.blok ?? found['NO BLOK'] ?? '';
+        const dusunVal = found.DUSUN ?? found.dusun ?? '';
+        const blokVal = found.BLOK ?? found.blok ?? '';
         const rtVal = found.RT ?? found.rt ?? '';
         const rwVal = found.RW ?? found.rw ?? '';
-        const desaVal = found.DESA ?? found.desa ?? found['KEL/DESA'] ?? '';
-        const kecVal = found.KECAMATAN ?? found.kecamatan ?? found['KECAMATAN LOKASI'] ?? '';
+        const desaVal = found.DESA ?? found.desa ?? '';
+        const kecVal = found.KECAMATAN ?? found.kecamatan ?? '';
 
         if (dusunVal !== undefined) setValue('dusunJalanGang', String(dusunVal));
         if (blokVal !== undefined) setValue('blok', String(blokVal));
@@ -161,10 +161,10 @@ export const PTSLForm: React.FC<Props> = ({ initialData, onSave, onCancel }) => 
         
         alert('✅ DATA SPPT DITEMUKAN\nInformasi objek pajak dan lokasi telah diisi otomatis.');
       } else {
-        alert('❌ DATA TIDAK DITEMUKAN\nNOP: ' + nopValue + ' tidak ada dalam database referensi.');
+        alert('❌ DATA TIDAK DITEMUKAN\nNOP: ' + nopValue + ' tidak ada dalam database cloud.');
       }
     } catch (err) {
-      alert('❌ GAGAL MENCARI DATA\nTerjadi kesalahan saat mencari NOP. Pastikan data sudah tersinkronisasi.');
+      alert('❌ GAGAL MENCARI DATA\nTerjadi kesalahan koneksi database.');
       console.error(err);
     }
   };
@@ -172,22 +172,20 @@ export const PTSLForm: React.FC<Props> = ({ initialData, onSave, onCancel }) => 
   const handleLookupSaksi = async (nik: string, saksiNum: 1 | 2) => {
     if (!nik) return alert('Masukkan NIK Saksi terlebih dahulu');
     try {
-      const res = await fetch(`/api/master/warga?search=${encodeURIComponent(nik)}`);
-      if (!res.ok) throw new Error('Network error');
-      const data = await res.json();
-      const found = data.data && data.data.length > 0 ? data.data[0] : null;
+      const docRef = doc(db, 'master_warga', String(nik));
+      const docSnap = await getDoc(docRef);
 
-      if (found) {
+      if (docSnap.exists()) {
+        const found = docSnap.data();
         const prefix = saksiNum === 1 ? 'Saksi1' : 'Saksi2';
         if (found.NAMA || found.nama) setValue(`nama${prefix}` as any, found.NAMA || found.nama);
         if (found.PEKERJAAN || found.pekerjaan) setValue(`pekerjaan${prefix}` as any, found.PEKERJAAN || found.pekerjaan);
         if (found.ALAMAT || found.alamat) setValue(`alamat${prefix}` as any, found.ALAMAT || found.alamat);
-        alert(`Data Saksi ${saksiNum} ditemukan!`);
+        alert(`Data Saksi ${saksiNum} ditemukan dari Cloud!`);
       } else {
-        alert(`⚠️ DATA TIDAK DITEMUKAN\nNIK Saksi ${saksiNum} tidak terdaftar dalam database referensi warga.`);
+        alert(`⚠️ DATA TIDAK DITEMUKAN\nNIK Saksi ${saksiNum} tidak terdaftar.`);
       }
     } catch (err) {
-      alert(`❌ GAGAL MENCARI DATA\nTerjadi kesalahan saat mencari NIK Saksi ${saksiNum}. Pastikan data sudah tersinkronisasi.`);
       console.error(err);
     }
   };

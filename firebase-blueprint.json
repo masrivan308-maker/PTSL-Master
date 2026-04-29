@@ -1,72 +1,46 @@
 {
   "entities": {
-    "PTSLData": {
-      "title": "PTSL Data",
-      "description": "Data record for PTSL",
+    "warga": {
+      "title": "Data Warga",
+      "description": "Informasi penduduk berdasarkan NIK",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "createdAt": { "type": "string" },
-        "nib": { "type": "string", "description": "NIB" },
-        "luas": { "type": "string" },
-        "noKtp": { "type": "string" },
-        "nama": { "type": "string" },
-        "operator": { "type": "string" },
-        "userId": { "type": "string" },
-        "nopSppt": { "type": "string" },
-        "namaSaksi1": { "type": "string" },
-        "namaSaksi2": { "type": "string" }
-      }
+        "NIK": { "type": "string", "description": "Nomor Induk Kependudukan" },
+        "NAMA": { "type": "string", "description": "Nama lengkap warga" },
+        "ALAMAT": { "type": "string", "description": "Alamat tempat tinggal" },
+        "KEL_DESA": { "type": "string", "description": "Kelurahan atau Desa" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["NIK", "NAMA"]
     },
-    "User": {
-      "title": "User",
-      "description": "User profile and role",
+    "sppt": {
+      "title": "Data SPPT",
+      "description": "Informasi Pajak Bumi dan Bangunan (SPPT)",
       "type": "object",
       "properties": {
-        "email": { "type": "string" },
-        "role": { "type": "string", "enum": ["admin", "operator"] },
-        "displayName": { "type": "string" }
-      }
-    },
-    "Warga": {
-      "title": "Warga",
-      "description": "Master data warga",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "NIK": { "type": "string" },
-        "NAMA": { "type": "string" },
-        "ALAMAT": { "type": "string" }
-      }
-    },
-    "SPPT": {
-      "title": "SPPT",
-      "description": "Master data SPPT",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "NOP": { "type": "string" },
-        "NAMA WAJIB PAJAK": { "type": "string" },
-        "LUAS SPPT": { "type": "string" }
-      }
+        "NOP": { "type": "string", "description": "Nomor Objek Pajak" },
+        "NAMA_WAJIB_PAJAK": { "type": "string", "description": "Nama pemilik atau pembayar pajak" },
+        "LUAS_SPPT": { "type": "number", "description": "Luas tanah/bangunan" },
+        "NJOP_PERMETER": { "type": "number", "description": "Nilai Jual Objek Pajak per meter" },
+        "DUSUN": { "type": "string" },
+        "BLOK": { "type": "string" },
+        "RT": { "type": "string" },
+        "RW": { "type": "string" },
+        "DESA": { "type": "string" },
+        "KECAMATAN": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["NOP", "NAMA_WAJIB_PAJAK"]
     }
   },
   "firestore": {
-    "/ptsl_data/{docId}": {
-      "schema": { "$ref": "#/entities/PTSLData" },
-      "description": "Main PTSL documents"
+    "/master_warga/{nik}": {
+      "schema": "warga",
+      "description": "Koleksi data master warga untuk pencarian"
     },
-    "/users/{userId}": {
-      "schema": { "$ref": "#/entities/User" },
-      "description": "User profiles with roles"
-    },
-    "/master_warga/{docId}": {
-      "schema": { "$ref": "#/entities/Warga" },
-      "description": "Reference data for warga"
-    },
-    "/master_sppt/{docId}": {
-      "schema": { "$ref": "#/entities/SPPT" },
-      "description": "Reference data for SPPT"
+    "/master_sppt/{nop}": {
+      "schema": "sppt",
+      "description": "Koleksi data master SPPT untuk pencarian"
     }
   }
 }

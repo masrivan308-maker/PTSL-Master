@@ -1,55 +1,74 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 0. Global Safety Net
-    match /{document=**} { 
-      allow read, write: if false; 
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
     }
-    
-    // Primitives
-    function isSignedIn() { return request.auth != null; }
-    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
-    function isAdmin() {
-      return isVerified() && (
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') || 
-        request.auth.token.email == 'masrivan308@gmail.com'
+
+    // Global helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Master Warga ---
+    match /master_warga/{nik} {
+      allow read: if isSignedIn();
+      allow delete: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(nik) && isValidWarga(incoming());
+      allow update: if isSignedIn() && isValidId(nik) && isValidWarga(incoming()) && (
+        // Identity integrity check: NIK inside data must match doc ID
+        incoming().NIK == nik &&
+        incoming().NIK == existing().NIK 
       );
     }
-    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
-    
-    // 1. Users
-    match /users/{userId} {
-      // Users can only read their own profile, admins can read all
-      allow read: if isSignedIn() && (isOwner(userId) || isAdmin());
-      // Self-creation allowed, initial role setup handled in app logic or rules
-      allow create: if isVerified() && isOwner(userId);
-      // Only admins can update roles, users can perhaps update displayName
-      allow update: if isVerified() && (
-        isAdmin() || 
-        (isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']))
+
+    function isValidWarga(data) {
+      return data.keys().hasAll(['NIK', 'NAMA', 'updatedAt']) &&
+             data.NIK is string && data.NIK.size() >= 10 && data.NIK.size() <= 20 &&
+             data.NAMA is string && data.NAMA.size() >= 2 && data.NAMA.size() <= 100 &&
+             (data.get('ALAMAT', '') is string) && (data.get('ALAMAT', '').size() <= 500) &&
+             (data.get('KEL_DESA', '') is string) && (data.get('KEL_DESA', '').size() <= 100) &&
+             data.updatedAt == request.time;
+    }
+
+    // --- Master SPPT ---
+    match /master_sppt/{nop} {
+      allow read: if isSignedIn();
+      allow delete: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(nop) && isValidSppt(incoming());
+      allow update: if isSignedIn() && isValidId(nop) && isValidSppt(incoming()) && (
+        // Identity integrity check
+        incoming().NOP == nop &&
+        incoming().NOP == existing().NOP
       );
-      allow delete: if isAdmin();
     }
-    
-    // 2. PTSL Data
-    match /ptsl_data/{docId} {
-      allow read: if isSignedIn();
-      allow create, update: if isVerified();
-      allow delete: if isAdmin();
-    }
-    
-    // 3. Master Warga
-    match /master_warga/{docId} {
-      allow read: if isSignedIn();
-      // Only admins can modify reference data
-      allow create, update, delete: if isAdmin();
-    }
-    
-    // 4. Master SPPT
-    match /master_sppt/{docId} {
-      allow read: if isSignedIn();
-      // Only admins can modify reference data
-      allow create, update, delete: if isAdmin();
+
+    function isValidSppt(data) {
+      return data.keys().hasAll(['NOP', 'NAMA_WAJIB_PAJAK', 'updatedAt']) &&
+             data.NOP is string && data.NOP.size() >= 10 && data.NOP.size() <= 30 &&
+             data.NAMA_WAJIB_PAJAK is string && data.NAMA_WAJIB_PAJAK.size() >= 2 && data.NAMA_WAJIB_PAJAK.size() <= 100 &&
+             (data.get('LUAS_SPPT', 0) is number) &&
+             (data.get('NJOP_PERMETER', 0) is number) &&
+             (data.get('DUSUN', '') is string) &&
+             (data.get('BLOK', '') is string) &&
+             (data.get('RT', '') is string) &&
+             (data.get('RW', '') is string) &&
+             (data.get('DESA', '') is string) &&
+             (data.get('KECAMATAN', '') is string) &&
+             data.updatedAt == request.time;
     }
   }
 }

@@ -2,46 +2,25 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import Papa from "papaparse";
+import * as admin from "firebase-admin";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import firebaseConfig from "./firebase-applet-config.json";
 
+// Initialize Firebase Admin
+if (admin.apps.length === 0) {
+  admin.initializeApp({
+    projectId: firebaseConfig.projectId,
+  });
+}
+
+const db = getFirestore();
 const app = express();
 const PORT = 3000;
-
-let wargaData: any[] = [];
-let spptData: any[] = [];
-let isDataLoaded = true;
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Upload endpoints
-app.post("/api/master/warga/upload", (req, res) => {
-  if (req.body && Array.isArray(req.body.data)) {
-    if (req.body.append) {
-      wargaData.push(...req.body.data);
-    } else {
-      wargaData = req.body.data;
-    }
-    isDataLoaded = true;
-    res.json({ status: "ok", message: `Berhasil mengunggah ${req.body.data.length} data. Total: ${wargaData.length}` });
-  } else {
-    res.status(400).json({ status: "error", message: "Format data tidak valid" });
-  }
-});
-
-app.post("/api/master/sppt/upload", (req, res) => {
-  if (req.body && Array.isArray(req.body.data)) {
-    if (req.body.append) {
-      spptData.push(...req.body.data);
-    } else {
-      spptData = req.body.data;
-    }
-    isDataLoaded = true;
-    res.json({ status: "ok", message: `Berhasil mengunggah ${req.body.data.length} data. Total: ${spptData.length}` });
-  } else {
-    res.status(400).json({ status: "error", message: "Format data tidak valid" });
-  }
-});
-
+// Admin Proxy Sync
 app.post("/api/master/sync-url", async (req, res) => {
   const { url, type } = req.body;
   if (!url || !type) {
@@ -63,17 +42,52 @@ app.post("/api/master/sync-url", async (req, res) => {
       throw new Error(`Gagal parsing CSV: ${result.errors[0].message}`);
     }
 
-    if (type === 'WARGA') {
-      wargaData = result.data;
-    } else if (type === 'SPPT') {
-      spptData = result.data;
+    const collectionName = type === 'WARGA' ? 'master_warga' : 'master_sppt';
+    const keyField = type === 'WARGA' ? 'NIK' : 'NOP';
+
+    // Transform and Clean
+    const cleanedData = result.data.map((item: any) => {
+      const newItem: any = { updatedAt: FieldValue.serverTimestamp() };
+      if (type === 'WARGA') {
+        const nik = String(item['NIK'] || item['noKtp'] || '');
+        if (!nik) return null;
+        newItem.NIK = nik;
+        newItem.NAMA = item['NAMA'] || item['nama'] || '-';
+        newItem.ALAMAT = item['ALAMAT'] || item['alamat'] || '-';
+        newItem.KEL_DESA = item['KEL/DESA'] || item['kelDesa'] || '-';
+      } else {
+        const nop = String(item['NOP'] || item['nopSppt'] || '');
+        if (!nop) return null;
+        newItem.NOP = nop;
+        newItem.NAMA_WAJIB_PAJAK = item['NAMA WAJIB PAJAK'] || item['namaWajibPajak'] || '-';
+        newItem.LUAS_SPPT = Number(item['LUAS SPPT'] || item['luasSppt'] || 0);
+        newItem.NJOP_PERMETER = Number(item['NJOP PERMETER'] || item['njopPermeter'] || 0);
+        newItem.DUSUN = item['DUSUN'] || '-';
+        newItem.BLOK = item['BLOK'] || '-';
+        newItem.RT = String(item['RT'] || '-');
+        newItem.RW = String(item['RW'] || '-');
+        newItem.DESA = item['DESA'] || '-';
+        newItem.KECAMATAN = item['KECAMATAN'] || '-';
+      }
+      return newItem;
+    }).filter(Boolean);
+
+    // Write to Firestore in batches
+    const batchSize = 500;
+    for (let i = 0; i < cleanedData.length; i += batchSize) {
+      const batch = db.batch();
+      const chunk = cleanedData.slice(i, i + batchSize);
+      chunk.forEach((item: any) => {
+        const docRef = db.collection(collectionName).doc(item[keyField]);
+        batch.set(docRef, item);
+      });
+      await batch.commit();
     }
 
-    isDataLoaded = true;
     res.json({ 
       status: "ok", 
-      message: `Berhasil sinkronisasi ${result.data.length} data dari Google Sheets.`,
-      count: result.data.length 
+      message: `Berhasil sinkronisasi ${cleanedData.length} data ke Firestore dari Google Sheets.`,
+      count: cleanedData.length 
     });
   } catch (error: any) {
     console.error("Sync URL error:", error);
@@ -81,83 +95,9 @@ app.post("/api/master/sync-url", async (req, res) => {
   }
 });
 
-app.post("/api/master/clear", (req, res) => {
-  const type = req.body.type;
-  if (type === 'WARGA') wargaData = [];
-  else if (type === 'SPPT') spptData = [];
-  else {
-    wargaData = [];
-    spptData = [];
-  }
-  res.json({ status: "ok", message: "Data master berhasil dikosongkan." });
-});
-
-// API routes FIRST
+// Health check
 app.get("/api/health", (req, res) => {
-  res.json({ status: "hello-world-123" });
-});
-
-app.get("/api/master/warga", (req, res) => {
-  console.log("RECEIVED REQUEST FOR /api/master/warga", req.url);
-  if (!isDataLoaded) {
-    return res.status(503).json({ error: "Data is still loading. Please try again in a few seconds." });
-  }
-
-  const search = (req.query.search as string || "").toLowerCase();
-  const page = parseInt(req.query.page as string || "1", 10);
-  const limit = parseInt(req.query.limit as string || "50", 10);
-
-  let filtered = wargaData;
-  if (search) {
-    filtered = filtered.filter(item => {
-      return Object.values(item).some(val => 
-        String(val).toLowerCase().includes(search)
-      );
-    });
-  }
-
-  const total = filtered.length;
-  const start = (page - 1) * limit;
-  const paginated = filtered.slice(start, start + limit);
-
-  res.json({
-    data: paginated,
-    total,
-    page,
-    limit,
-    totalPages: Math.ceil(total / limit)
-  });
-});
-
-app.get("/api/master/sppt", (req, res) => {
-  if (!isDataLoaded) {
-    return res.status(503).json({ error: "Data is still loading. Please try again in a few seconds." });
-  }
-
-  const search = (req.query.search as string || "").toLowerCase();
-  const page = parseInt(req.query.page as string || "1", 10);
-  const limit = parseInt(req.query.limit as string || "50", 10);
-
-  let filtered = spptData;
-  if (search) {
-    filtered = filtered.filter(item => {
-      return Object.values(item).some(val => 
-        String(val).toLowerCase().includes(search)
-      );
-    });
-  }
-
-  const total = filtered.length;
-  const start = (page - 1) * limit;
-  const paginated = filtered.slice(start, start + limit);
-
-  res.json({
-    data: paginated,
-    total,
-    page,
-    limit,
-    totalPages: Math.ceil(total / limit)
-  });
+  res.json({ status: "ok" });
 });
 
 async function startServer() {
