@@ -300,7 +300,7 @@ export const PTSLList: React.FC<Props> = ({ rows, onAdd, onEdit, onDelete, onExp
 
       <div className="flex justify-between items-center px-4 text-xs">
         <div className="flex gap-4">
-          <span className="text-slate-400 font-bold uppercase tracking-widest">Database Offline</span>
+          <span className="text-slate-400 font-bold uppercase tracking-widest">Database Cloud Aktif</span>
         </div>
         <div className="flex items-center gap-1 text-emerald-600 font-bold">
            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>

@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ShieldCheck, Database, Search, Edit2, Trash2, PlusCircle, X, CheckCircle, Save, Upload, RefreshCw, ChevronLeft, ChevronRight, FileSpreadsheet, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
 import { 
   collection, 
   query, 
@@ -223,6 +221,8 @@ export const MasterDataManagement: React.FC = () => {
     setIsLoading(true);
     setUploadProgress('Membaca data...');
     try {
+      const Papa = (await import('papaparse')).default;
+      const XLSX = await import('xlsx');
       let parsedData: any[] = [];
       const isCsv = source.name.toLowerCase().endsWith('.csv');
       

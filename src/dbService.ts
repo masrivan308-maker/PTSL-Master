@@ -1,54 +1,6 @@
-import * as XLSX from 'xlsx';
 import { PTSLData, DEFAULT_VALUES } from './types';
-import { db, auth } from './firebase';
-import { collection, doc, setDoc, deleteDoc, getDocs, onSnapshot, query, addDoc, updateDoc, writeBatch } from 'firebase/firestore';
-
-export enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-    tenantId?: string | null;
-    providerInfo?: {
-      providerId?: string | null;
-      email?: string | null;
-    }[];
-  }
-}
-
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map(provider => ({
-        providerId: provider.providerId,
-        email: provider.email,
-      })) || []
-    },
-    operationType,
-    path
-  }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
+import { db, auth, handleFirestoreError, OperationType } from './firebase';
+import { collection, doc, setDoc, deleteDoc, getDocs, onSnapshot, query, updateDoc, writeBatch } from 'firebase/firestore';
 
 // Collections setup
 const COL_PTSL = 'ptsl_data';
@@ -255,7 +207,8 @@ export const dbService = {
   },
 
   // --- EXPORT / IMPORT SUPPORT ---
-  exportToExcel: (data: PTSLData[]) => {
+  exportToExcel: async (data: PTSLData[]) => {
+    const XLSX = await import('xlsx');
     // Format headers for readable Excel according to the form
     const EXCEL_MAPPING = [
       { key: 'nib', label: 'NIB' },
@@ -403,6 +356,7 @@ export const dbService = {
   },
 
   importFromExcel: async (file: File): Promise<PTSLData[]> => {
+    const XLSX = await import('xlsx');
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -418,7 +372,8 @@ export const dbService = {
     });
   },
 
-  downloadTemplate: (type: 'PTSL' | 'WARGA' | 'SPPT') => {
+  downloadTemplate: async (type: 'PTSL' | 'WARGA' | 'SPPT') => {
+    const XLSX = await import('xlsx');
     let headers: string[] = [];
     let filename = '';
 
