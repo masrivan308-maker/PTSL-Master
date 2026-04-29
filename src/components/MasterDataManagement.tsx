@@ -33,9 +33,10 @@ interface IndividualEditModalProps {
   onSave: (data: any) => Promise<void>;
   initialData: any;
   type: DataSource;
+  isNew?: boolean;
 }
 
-const IndividualEditModal: React.FC<IndividualEditModalProps> = ({ isOpen, onClose, onSave, initialData, type }) => {
+const IndividualEditModal: React.FC<IndividualEditModalProps> = ({ isOpen, onClose, onSave, initialData, type, isNew }) => {
   const [formData, setFormData] = useState<any>(initialData || {});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -60,13 +61,13 @@ const IndividualEditModal: React.FC<IndividualEditModalProps> = ({ isOpen, onClo
 
   const fields = type === 'WARGA' 
     ? [
-        { key: 'NIK', label: 'NIK', disabled: true },
+        { key: 'NIK', label: 'NIK', disabled: !isNew },
         { key: 'NAMA', label: 'Nama Lengkap' },
         { key: 'ALAMAT', label: 'Alamat' },
         { key: 'KEL_DESA', label: 'Kelurahan/Desa' }
       ]
     : [
-        { key: 'NOP', label: 'NOP', disabled: true },
+        { key: 'NOP', label: 'NOP', disabled: !isNew },
         { key: 'NAMA_WAJIB_PAJAK', label: 'Nama Wajib Pajak' },
         { key: 'LUAS_SPPT', label: 'Luas SPPT', type: 'number' },
         { key: 'NJOP_PERMETER', label: 'NJOP /Meter', type: 'number' },
@@ -87,13 +88,13 @@ const IndividualEditModal: React.FC<IndividualEditModalProps> = ({ isOpen, onClo
       >
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
           <h3 className="font-bold text-slate-800 flex items-center gap-2">
-            <Edit2 size={18} className="text-indigo-600" />
-            Edit Data {type}
+            {isNew ? <PlusCircle size={18} className="text-green-600" /> : <Edit2 size={18} className="text-indigo-600" />}
+            {isNew ? 'Tambah' : 'Edit'} Data {type}
           </h3>
           <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition"><X size={20}/></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto p-1">
             {fields.map(f => (
               <div key={f.key} className={f.key === 'ALAMAT' || f.key === 'NAMA_WAJIB_PAJAK' ? 'md:col-span-2' : ''}>
                 <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">{f.label}</label>
@@ -102,8 +103,9 @@ const IndividualEditModal: React.FC<IndividualEditModalProps> = ({ isOpen, onClo
                   value={formData[f.key] || ''}
                   onChange={e => setFormData({ ...formData, [f.key]: f.type === 'number' ? Number(e.target.value) : e.target.value })}
                   disabled={f.disabled}
+                  placeholder={`Masukkan ${f.label}`}
                   className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none disabled:opacity-50"
-                  required
+                  required={f.key === 'NIK' || f.key === 'NOP' || f.key === 'NAMA' || f.key === 'NAMA_WAJIB_PAJAK'}
                 />
               </div>
             ))}
@@ -119,10 +121,10 @@ const IndividualEditModal: React.FC<IndividualEditModalProps> = ({ isOpen, onClo
             <button 
               type="submit" 
               disabled={isSubmitting}
-              className="flex-1 px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+              className={`flex-1 px-4 py-2 text-sm font-bold text-white ${isNew ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700'} rounded-lg transition flex items-center justify-center gap-2`}
             >
-              {isSubmitting ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
-              Simpan Perubahan
+              {isSubmitting ? <RefreshCw size={16} className="animate-spin" /> : (isNew ? <CheckCircle size={16} /> : <Save size={16} />)}
+              {isNew ? 'Simpan Baru' : 'Simpan Perubahan'}
             </button>
           </div>
         </form>
@@ -144,11 +146,10 @@ export const MasterDataManagement: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string>('');
-  const [showUrlInput, setShowUrlInput] = useState(false);
-  const [googleSheetUrl, setGoogleSheetUrl] = useState(() => localStorage.getItem('googleSheetUrl') || '');
 
   // Selection for edit
   const [editingItem, setEditingItem] = useState<any | null>(null);
+  const [isAddingNew, setIsAddingNew] = useState(false);
 
   const fileInputWargaRef = useRef<HTMLInputElement>(null);
   const fileInputSpptRef = useRef<HTMLInputElement>(null);
@@ -159,10 +160,6 @@ export const MasterDataManagement: React.FC = () => {
     });
     return () => unsubscribe();
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem('googleSheetUrl', googleSheetUrl);
-  }, [googleSheetUrl]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -183,18 +180,16 @@ export const MasterDataManagement: React.FC = () => {
       const collectionName = activeTab === 'WARGA' ? 'master_warga' : 'master_sppt';
       const colRef = collection(db, collectionName);
       
-      // Get total count (for initial load or tab change)
-      if (page === 1) {
-        const countSnapshot = await getCountFromServer(colRef);
-        setTotal(countSnapshot.data().count);
-        setTotalPages(Math.ceil(countSnapshot.data().count / limit));
-      }
+      // Get total count
+      const countSnapshot = await getCountFromServer(colRef);
+      const totalCount = countSnapshot.data().count;
+      setTotal(totalCount);
+      setTotalPages(Math.ceil(totalCount / limit));
 
       // Build query
       let q = query(colRef, orderBy(activeTab === 'WARGA' ? 'NIK' : 'NOP'), limit(limit));
       
       if (debouncedSearch) {
-        // Simple prefix search for NIK/NOP
         q = query(
           colRef, 
           where(activeTab === 'WARGA' ? 'NIK' : 'NOP', '>=', debouncedSearch),
@@ -202,8 +197,6 @@ export const MasterDataManagement: React.FC = () => {
           limit(limit)
         );
       } else if (page > 1) {
-        // Firestore pagination using offset is expensive, so we just do this for simplicity in this demo
-        // Ideally we'd use startAfter(lastDocument)
         const skipQ = query(colRef, orderBy(activeTab === 'WARGA' ? 'NIK' : 'NOP'), limit((page - 1) * limit));
         const skipSnapshot = await getDocs(skipQ);
         const lastDoc = skipSnapshot.docs[skipSnapshot.docs.length - 1];
@@ -217,43 +210,8 @@ export const MasterDataManagement: React.FC = () => {
       setData(results);
     } catch (err) {
       console.error('Fetch error:', err);
-      // alert('Gagal memuat data dari Firestore. Periksa koneksi atau rules.');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleSyncUrl = async () => {
-    if (!googleSheetUrl) return;
-    setIsLoading(true);
-    setUploadProgress('Sinkronisasi data oleh server (Proxy)...');
-    try {
-      const res = await fetch('/api/master/sync-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: googleSheetUrl, type: activeTab })
-      });
-      
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.message || 'Gagal sinkronisasi data via proxy.');
-      
-      setUploadProgress('Menyimpan data ke Firestore...');
-      // Even if proxy "finished", the server-side code was likely still using in-memory.
-      // But wait, the user asked for "Sync URL agar diproses langsung di sisi server".
-      // If I want it in Firebase, I should either:
-      // 1. Update the server.ts to write to Firestore (Full-stack).
-      // 2. Or if server.ts just fetches CSV, the frontend can receive it and upload.
-      
-      // Let's assume the server.ts was updated (I'll do that next).
-      
-      alert(`Berhasil: ${result.message}`);
-      fetchData();
-    } catch (e: any) {
-      console.error(e);
-      alert('Gagal Sinkronisasi: ' + e.message);
-    } finally {
-      setIsLoading(false);
-      setUploadProgress('');
     }
   };
 
@@ -425,17 +383,18 @@ export const MasterDataManagement: React.FC = () => {
   return (
     <div className="p-8">
       <IndividualEditModal 
-        isOpen={!!editingItem} 
-        onClose={() => setEditingItem(null)} 
+        isOpen={!!editingItem || isAddingNew} 
+        onClose={() => { setEditingItem(null); setIsAddingNew(false); }} 
         onSave={saveEditedRecord}
         initialData={editingItem}
         type={activeTab}
+        isNew={isAddingNew}
       />
 
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-800">Manajemen Data Master</h2>
-          <p className="text-sm text-slate-500">Unggah file CSV atau Excel untuk bantuan input otomatis.</p>
+          <p className="text-sm text-slate-500">Input manual atau unggah file untuk data masal.</p>
         </div>
         <div className="flex gap-3">
           <input
@@ -453,68 +412,27 @@ export const MasterDataManagement: React.FC = () => {
             onChange={(e) => handleFileUpload(e, 'SPPT')}
           />
           <button 
-            id="btn-toggle-sync-url"
-            onClick={() => setShowUrlInput(!showUrlInput)}
-            className={`px-4 py-2 ${showUrlInput ? 'bg-amber-100 text-amber-700' : 'bg-white text-slate-700 border border-slate-200'} rounded-lg flex items-center gap-2 font-bold hover:bg-amber-50 transition shadow-sm`}
+            id="btn-add-manual"
+            onClick={() => setIsAddingNew(true)}
+            className="px-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-lg flex items-center gap-2 font-bold hover:bg-slate-50 transition shadow-sm"
           >
-            <RefreshCw size={18} className={showUrlInput ? "text-amber-600" : ""} />
-            Sync URL
+            <PlusCircle size={18} className="text-green-600" />
+            Tambah Manual
           </button>
           <button 
-            id="btn-upload-warga"
-            onClick={() => fileInputWargaRef.current?.click()}
+            id="btn-upload-master"
+            onClick={() => activeTab === 'WARGA' ? fileInputWargaRef.current?.click() : fileInputSpptRef.current?.click()}
             disabled={isLoading}
             className="px-4 py-2 bg-indigo-600 text-white rounded-lg flex items-center gap-2 font-bold hover:bg-indigo-700 transition disabled:opacity-50 shadow-sm"
           >
             <Upload size={18} />
-            Upload Warga
-          </button>
-          <button 
-            id="btn-upload-sppt"
-            onClick={() => fileInputSpptRef.current?.click()}
-            disabled={isLoading}
-            className="px-4 py-2 bg-teal-600 text-white rounded-lg flex items-center gap-2 font-bold hover:bg-teal-700 transition disabled:opacity-50 shadow-sm"
-          >
-            <Upload size={18} />
-            Upload SPPT
+            Upload {activeTab === 'WARGA' ? 'NIK' : 'NOP'}
           </button>
         </div>
       </div>
 
-      <AnimatePresence>
-        {showUrlInput && (
-          <motion.div 
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="mb-6 bg-amber-50 border border-amber-100 p-6 rounded-2xl overflow-hidden"
-          >
-            <h3 className="font-bold text-amber-900 mb-2 flex items-center gap-2"><Database size={18}/> Sinkronisasi Google Sheets</h3>
-            <p className="text-xs text-amber-700/80 mb-4">Masukkan link CSV dari Google Sheets (File &gt; Share &gt; Publish to web &gt; CSV). Link ini akan disimpan secara lokal di browser Anda.</p>
-            <div className="flex gap-3">
-              <input 
-                id="input-google-sheet-url"
-                type="text" 
-                value={googleSheetUrl}
-                onChange={e => setGoogleSheetUrl(e.target.value)}
-                placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv"
-                className="flex-1 px-4 py-2 bg-white border border-amber-200 rounded-lg text-sm font-mono outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
-              />
-              <button 
-                id="btn-sync-now"
-                onClick={handleSyncUrl}
-                disabled={!googleSheetUrl || isLoading}
-                className="px-6 py-2 bg-amber-600 text-white rounded-lg font-bold hover:bg-amber-700 transition disabled:opacity-50 flex items-center gap-2"
-              >
-                <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
-                Sync ke {activeTab}
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {uploadProgress && <div id="upload-status-indicator" className="bg-indigo-50 text-indigo-700 p-3 rounded-lg flex items-center gap-3 font-semibold mb-6 animate-pulse"><RefreshCw size={20} className="animate-spin" /> {uploadProgress}</div>}
 
-{uploadProgress && <div id="upload-status-indicator" className="bg-indigo-50 text-indigo-700 p-3 rounded-lg flex items-center gap-3 font-semibold mb-6 animate-pulse"><RefreshCw size={20} className="animate-spin" /> {uploadProgress}</div>}
 
       <div className="flex justify-between items-end mb-6">
         <div className="flex bg-slate-100 p-1 rounded-xl w-fit">
@@ -654,12 +572,16 @@ export const MasterDataManagement: React.FC = () => {
                         <p className="text-slate-500 text-xs leading-relaxed">
                           {searchQuery 
                             ? `Tidak ada data master ${activeTab} yang cocok dengan pencarian "${searchQuery}".`
-                            : `Anda baru saja beralih ke sistem Cloud. Silakan unggah file CSV/Excel atau gunakan fitur Sync URL untuk mengisi data master ${activeTab}.`}
+                            : `Data master ${activeTab} belum terisi. Silakan tambah data secara manual atau unggah file CSV/Excel.`}
                         </p>
                         {!searchQuery && (
                           <div className="mt-6 flex flex-wrap justify-center gap-2">
-                             <button onClick={() => setShowUrlInput(true)} className="px-4 py-2 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg border border-amber-100 hover:bg-amber-100 transition">Sync dari Google Sheets</button>
-                             <button onClick={() => activeTab === 'WARGA' ? fileInputWargaRef.current?.click() : fileInputSpptRef.current?.click()} className="px-4 py-2 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-100 hover:bg-indigo-100 transition">Upload File</button>
+                             <button onClick={() => setIsAddingNew(true)} className="px-4 py-2 bg-green-50 text-green-700 text-xs font-bold rounded-lg border border-green-100 hover:bg-green-100 transition flex items-center gap-2">
+                                <PlusCircle size={14} /> Tambah Manual
+                             </button>
+                             <button onClick={() => activeTab === 'WARGA' ? fileInputWargaRef.current?.click() : fileInputSpptRef.current?.click()} className="px-4 py-2 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-100 hover:bg-indigo-100 transition flex items-center gap-2">
+                                <Upload size={14} /> Upload File
+                             </button>
                           </div>
                         )}
                       </div>
