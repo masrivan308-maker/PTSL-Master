@@ -216,19 +216,23 @@ export const MasterDataManagement: React.FC = () => {
     }
   };
 
-  const processData = async (source: File, type: DataSource) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, type: DataSource) => {
+    const source = event.target.files?.[0];
+    if (!source) return;
+
     setIsLoading(true);
     setUploadProgress('Membaca data...');
     try {
       let parsedData: any[] = [];
-      const isCsv = source.name.endsWith('.csv');
+      const isCsv = source.name.toLowerCase().endsWith('.csv');
       
       if (isCsv) {
+        const text = await source.text();
         parsedData = await new Promise((resolve, reject) => {
-          Papa.parse(source, {
+          Papa.parse(text, {
             header: true,
-            skipEmptyLines: true,
-            dynamicTyping: false, // Penting: Jangan otomatis ubah NIK/NOP jadi number (menghindari kehilangan presisi)
+            skipEmptyLines: 'greedy',
+            dynamicTyping: false, 
             complete: (results) => resolve(results.data),
             error: (error) => reject(error)
           });
@@ -241,56 +245,65 @@ export const MasterDataManagement: React.FC = () => {
         parsedData = XLSX.utils.sheet_to_json(worksheet);
       }
 
-      if (parsedData.length === 0) throw new Error('File kosong atau format tidak sesuai.');
+      if (!parsedData || parsedData.length === 0) throw new Error('File kosong atau format tidak didukung.');
 
       const collectionName = type === 'WARGA' ? 'master_warga' : 'master_sppt';
       const keyField = type === 'WARGA' ? 'NIK' : 'NOP';
 
-      // Transform data keys to be consistent with our rules and blueprint
+      // Robust helper to find value regardless of case, spaces, or synonyms
+      const findVal = (item: any, keys: string[]) => {
+        const keysUpper = keys.map(k => k.trim().toUpperCase());
+        const itemKeys = Object.keys(item);
+        
+        for (const itemKey of itemKeys) {
+          const normalizedKey = itemKey.trim().toUpperCase()
+            .replace(/\s+/g, '_')   // Replace spaces with underscores
+            .replace(/\//g, '_')    // Replace slashes
+            .replace(/[^A-Z0-9_]/g, ''); // Remove special chars
+          
+          if (keysUpper.includes(normalizedKey) || keysUpper.some(k => normalizedKey.includes(k))) {
+            const val = item[itemKey];
+            return val === undefined || val === null ? undefined : String(val).trim();
+          }
+        }
+        return undefined;
+      };
+
+      // Transform and clean
       const cleanedData = parsedData.map(item => {
         const newItem: any = { updatedAt: serverTimestamp() };
         
-        // Helper to find value regardless of case or slight name variants
-        const findVal = (keys: string[]) => {
-          for (const k of keys) {
-            const foundKey = Object.keys(item).find(key => key.toUpperCase() === k.toUpperCase());
-            if (foundKey) return item[foundKey];
-          }
-          return undefined;
-        };
-
         if (type === 'WARGA') {
-          const nik = String(findVal(['NIK', 'noKtp', 'no_ktp', 'nomor_induk', 'ID']) || '');
+          const nik = findVal(item, ['NIK', 'NOKTP', 'NO_KTP', 'NOMORINDUK', 'IDWARGA', 'IDENTITAS', 'KTP', 'ID']);
           if (!nik) return null;
           newItem.NIK = nik;
-          newItem.NAMA = String(findVal(['NAMA', 'nama_lengkap', 'fullname', 'NAMA_LENKAP']) || '-');
-          newItem.ALAMAT = String(findVal(['ALAMAT', 'address', 'tempat_tinggal', 'ALAMAT_TINGGAL']) || '-');
-          newItem.KEL_DESA = String(findVal(['KEL/DESA', 'KEL_DESA', 'KELURAHAN', 'DESA', 'kelDesa', 'KEL']) || '-');
+          newItem.NAMA = findVal(item, ['NAMA_LENGKAP', 'FULLNAME', 'NAMALENGKAP', 'NAMA', 'NAME', 'NAMA_LENKAP']) || '-';
+          newItem.ALAMAT = findVal(item, ['ALAMAT', 'ADDRESS', 'TEMPAT_TINGGAL', 'DUSUN', 'ALAMAT_TINGGAL']) || '-';
+          newItem.KEL_DESA = findVal(item, ['KEL_DESA', 'KELURAHAN', 'DESA', 'KEL', 'KELDESA', 'KELURAHAN_DESA']) || '-';
         } else {
-          const nop = String(findVal(['NOP', 'nopSppt', 'nop_sppt', 'nomor_objek', 'ID_OBJEK']) || '');
+          const nop = findVal(item, ['NOP', 'NOPSPPT', 'NOP_SPPT', 'NOMOROBJEK', 'IDOBJEK', 'NOPPAJAK', 'NOMOR_OBYEK', 'ID']);
           if (!nop) return null;
           newItem.NOP = nop;
-          newItem.NAMA_WAJIB_PAJAK = String(findVal(['NAMA WAJIB PAJAK', 'NAMA_WAJIB_PAJAK', 'OWNER', 'PEMILIK', 'WAJIB_PAJAK']) || '-');
-          newItem.LUAS_SPPT = Number(findVal(['LUAS SPPT', 'LUAS_SPPT', 'LUAS', 'LUAS_TANAH']) || 0);
-          newItem.NJOP_PERMETER = Number(findVal(['NJOP PERMETER', 'NJOP_PERMETER', 'NJOP', 'HARGA_METER']) || 0);
-          newItem.DUSUN = String(findVal(['DUSUN']) || '-');
-          newItem.BLOK = String(findVal(['BLOK']) || '-');
-          newItem.RT = String(findVal(['RT']) || '-');
-          newItem.RW = String(findVal(['RW']) || '-');
-          newItem.DESA = String(findVal(['DESA']) || '-');
-          newItem.KECAMATAN = String(findVal(['KECAMATAN']) || '-');
+          newItem.NAMA_WAJIB_PAJAK = findVal(item, ['NAMA_WAJIB_PAJAK', 'OWNER', 'PEMILIK', 'WAJIBPAJAK', 'NAMA_WP', 'NAMAWAJIB', 'WAJIB_PAJAK']) || '-';
+          newItem.LUAS_SPPT = Number(findVal(item, ['LUAS_SPPT', 'LUASTANAH', 'LUAS', 'LUASOBJEK', 'LUAS_SPPT']) || 0);
+          newItem.NJOP_PERMETER = Number(findVal(item, ['NJOP_PERMETER', 'NJOPMETER', 'HARGAMETER', 'NJOP']) || 0);
+          newItem.DUSUN = findVal(item, ['DUSUN', 'LINGKUNGAN']) || '-';
+          newItem.BLOK = findVal(item, ['BLOK', 'NOMOR_BLOK']) || '-';
+          newItem.RT = findVal(item, ['RT']) || '-';
+          newItem.RW = findVal(item, ['RW']) || '-';
+          newItem.DESA = findVal(item, ['DESA', 'KELURAHAN_DESA']) || '-';
+          newItem.KECAMATAN = findVal(item, ['KECAMATAN']) || '-';
         }
         return newItem;
       }).filter(Boolean);
 
       if (cleanedData.length === 0) {
-        throw new Error('Tidak ada data valid yang bisa diimpor. Pastikan kolom NIK atau NOP tersedia dan benar.');
+        throw new Error(`Tidak ada data ${type} yang valid. Pastikan ada kolom NIK atau NOP di file Anda.`);
       }
 
-      setUploadProgress(`Menyiapkan ${cleanedData.length} data...`);
+      setUploadProgress(`Mengunggah ${cleanedData.length} data...`);
       
-      // Firestore batch limit is 500
-      const batchSize = 500;
+      const batchSize = 400; // Safer batch size
       for (let i = 0; i < cleanedData.length; i += batchSize) {
         const batch = writeBatch(db);
         const chunk = cleanedData.slice(i, i + batchSize);
@@ -300,22 +313,19 @@ export const MasterDataManagement: React.FC = () => {
           batch.set(docRef, item);
         });
 
-        try {
-          await batch.commit();
-        } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, collectionName);
-        }
-        setUploadProgress(`Sinkronisasi Firestore... ${Math.min(i + batchSize, cleanedData.length)} / ${cleanedData.length}`);
+        await batch.commit();
+        setUploadProgress(`Berhasil: ${Math.min(i + batchSize, cleanedData.length)} / ${cleanedData.length}`);
       }
 
-      alert(`Berhasil mengunggah ${cleanedData.length} data ke Firestore.`);
+      alert(`✅ Berhasil mengunggah ${cleanedData.length} data master ${activeTab}.`);
       fetchData();
     } catch (e: any) {
       console.error(e);
-      alert('Gagal memproses data: ' + e.message);
+      alert('❌ Gagal Upload: ' + e.message);
     } finally {
       setIsLoading(false);
       setUploadProgress('');
+      if (event.target) event.target.value = '';
     }
   };
 
