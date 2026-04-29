@@ -22,6 +22,7 @@ import {
 } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { db, auth, signInWithGoogle, handleFirestoreError, OperationType } from '../firebase';
+import { dbService } from '../dbService';
 
 type DataSource = 'WARGA' | 'SPPT';
 
@@ -428,6 +429,14 @@ export const MasterDataManagement: React.FC = () => {
           />
           {isAdmin ? (
             <>
+              <button 
+                id="btn-download-template"
+                onClick={() => dbService.downloadTemplate(activeTab)}
+                className="px-4 py-2 bg-white text-slate-700 border border-slate-200 rounded-lg flex items-center gap-2 font-bold hover:bg-slate-50 transition shadow-sm"
+              >
+                <FileSpreadsheet size={18} className="text-emerald-600" />
+                Template {activeTab === 'WARGA' ? 'CSV' : 'Excel'}
+              </button>
               <button 
                 id="btn-add-manual"
                 onClick={() => setIsAddingNew(true)}
